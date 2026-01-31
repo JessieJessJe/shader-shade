@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Shader Agent MVP</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="header">
+        <h1>Shader Agent MVP</h1>
+        <p>Upload a texture. Run iterations. Review scores and best output.</p>
+      </header>
+
+      <section class="card">
+        <h2>Input</h2>
+        <input id="fileInput" type="file" accept="image/*" />
+        <div class="row">
+          <button id="uploadBtn">Upload</button>
+          <button id="runBtn" disabled>Run Iterations</button>
+        </div>
+        <div id="uploadStatus" class="muted"></div>
+      </section>
+
+      <section class="card">
+        <h2>Score Weights (Fixed for now)</h2>
+        <div class="slider">
+          <label>FFT <span id="fftVal">0.40</span></label>
+          <input id="fftWeight" type="range" min="0" max="1" step="0.05" value="0.4" />
+        </div>
+        <div class="slider">
+          <label>Edge <span id="edgeVal">0.30</span></label>
+          <input id="edgeWeight" type="range" min="0" max="1" step="0.05" value="0.3" />
+        </div>
+        <div class="slider">
+          <label>Gram <span id="gramVal">0.30</span></label>
+          <input id="gramWeight" type="range" min="0" max="1" step="0.05" value="0.3" />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Iterations</h2>
+        <div id="iterations" class="grid"></div>
+      </section>
+
+      <section class="card">
+        <h2>Best Output</h2>
+        <div id="best"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

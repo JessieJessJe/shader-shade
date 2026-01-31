@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pillow
+numpy
+python-multipart
+moderngl
+openai
+weave
+python-dotenv

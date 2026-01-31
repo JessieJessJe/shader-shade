@@ -1,0 +1,193 @@
+Self-Improving Shader Agent -- Hackathon Project
+One-Liner
+An agent that turns photos of real-world textures into procedural shader code, improving itself through search and evaluation—with every decision traced.
+
+The Problem
+Artists see textures everywhere—bark, concrete, fabric, rust. The gap between "I see this" and "I can code this" is enormous. Existing tools either:
+
+Generate from text prompts (loses visual specificity)
+Require manual shader writing (high skill barrier)
+One-shot generate with no refinement (hit or miss)
+
+
+The Solution
+An agent that:
+
+Takes your photo
+Searches a corpus of noise-based shaders for similar techniques
+Synthesizes new GLSL code combining retrieved references
+Renders and evaluates against your original image
+Reflects on what's wrong and iterates
+
+The key: the agent improves its own output through a loop of search, generate, evaluate, reflect.
+
+Architecture
+
+┌─────────────────────────────────────────────────────────────────┐
+│                         USER                                    │
+│                    uploads texture photo                        │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    SIMILARITY ENGINE                            │
+│                                                                 │
+│   Input image → Gram matrix, FFT, Edge detection                │
+│   Outputs texture signature for search + evaluation             │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    SHADER CORPUS (Redis)                        │
+│                                                                 │
+│   ~200 noise-based shaders scraped from Shadertoy               │
+│   Each entry: {code, rendered_frame, texture_signature, tags}   │
+│   Vector similarity search on texture signatures                │
+│                                                                 │
+│   Built with: Browserbase (scraping) + Redis (storage/search)   │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    AGENT LOOP                                   │
+│                                                                 │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │ 1. SEARCH                                               │   │
+│   │    Query corpus for shaders similar to input            │   │
+│   │    "This looks like Worley noise + domain warping"      │   │
+│   └────────────────────────┬────────────────────────────────┘   │
+│                            ▼                                    │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │ 2. SYNTHESIZE                                           │   │
+│   │    LLM generates GLSL combining retrieved references    │   │
+│   │    Constrained to noise-based techniques                │   │
+│   └────────────────────────┬────────────────────────────────┘   │
+│                            ▼                                    │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │ 3. RENDER                                               │   │
+│   │    Execute shader, capture frame                        │   │
+│   └────────────────────────┬────────────────────────────────┘   │
+│                            ▼                                    │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │ 4. EVALUATE                                             │   │
+│   │    Compare rendered output to input image               │   │
+│   │    Composite score: gram + frequency + edge             │   │
+│   │    Each component tells agent something specific        │   │
+│   └────────────────────────┬────────────────────────────────┘   │
+│                            ▼                                    │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │ 5. REFLECT                                              │   │
+│   │    Agent sees: "gram: 0.7, frequency: 0.3, edge: 0.6"   │   │
+│   │    Agent reasons: "pattern is right but scale is off"   │   │
+│   │    Agent decides: search for finer-grained noise OR     │   │
+│   │                   modify frequency parameter in code    │   │
+│   └────────────────────────┬────────────────────────────────┘   │
+│                            │                                    │
+│                            ▼                                    │
+│                    Iteration < 5?                               │
+│                      Yes → Loop back to step 1 or 2             │
+│                      No  → Return best result                   │
+│                                                                 │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    WEAVE OBSERVABILITY                          │
+│                                                                 │
+│   Every step is traced:                                         │
+│   - Search queries and results                                  │
+│   - Generated code per iteration                                │
+│   - Similarity scores (all components + composite)              │
+│   - Agent reasoning ("why I chose to...")                       │
+│   - Improvement trajectory over iterations                      │
+│                                                                 │
+│   Proves: agent actually improves, not just changes             │
+└─────────────────────┬───────────────────────────────────────────┘
+                      │
+                      ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    OUTPUT                                       │
+│                                                                 │
+│   - Final GLSL code                                             │
+│   - Rendered preview                                            │
+│   - Link to Weave trace (see the journey)                       │
+│   - Similarity score breakdown                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+The Weave Story
+When you demo, you show:
+
+Input: photo of tree bark
+Iteration 1: agent searches "organic texture noise", generates fBm-based shader, score 0.35
+Iteration 2: agent sees "edge score low", searches "cellular noise", incorporates Worley, score 0.52
+Iteration 3: agent sees "frequency too high", modifies octave count, score 0.64
+Iteration 4: minor refinement, score 0.68
+Output: shader that captures the bark texture
+
+The Weave trace shows this trajectory—proof the agent improved, not randomly.
+
+Phase 1: Core Loop (Weave Only)
+Goal: Agent that improves shader code based on image, all traced in Weave.
+No Redis. No Browserbase. No corpus. Just:
+Upload image
+    → Agent analyzes image ("I see organic, cellular patterns")
+    → Agent generates GLSL from scratch (using its training knowledge)
+    → Render shader
+    → Compute similarity score (gram, frequency, edge)
+    → Agent sees scores, reflects, modifies code
+    → Iterate 3-5 times
+    → Output best result + Weave trace
+What you build:
+
+Image upload endpoint
+Similarity scoring functions (wrapped in @weave.op())
+Agent prompt that takes: image description, current code, scores, history
+Render pipeline (headless, or client-side screenshot back to server)
+Simple UI: upload → watch iterations → see result
+
+What Weave tracks:
+
+Each iteration's generated code
+Similarity scores per iteration
+Agent reasoning
+Improvement trajectory
+
+This alone is a valid submission. You have a self-improving agent with observability. The "self-improvement" comes from the agent's own reasoning + the feedback signal, not external knowledge.
+Time estimate: 8-10 hours
+
+Phase 2: Which Sponsor Next?
+Option A: Browserbase Next
+What it adds:
+
+Corpus of real Shadertoy shaders
+Agent can search for references instead of generating from nothing
+Retrieval-augmented generation (RAG for shaders)
+
+Value:
+
+Better outputs (real examples > LLM imagination)
+Agent has more interesting decisions (what to search, which reference to use)
+Differentiates from "just ask Claude to write a shader"
+
+Risk:
+
+Scraping takes time, might hit issues
+Need to render scraped shaders to get their images
+More moving parts
+
+Time estimate: 4-6 hours
+
+Option B: Redis Next
+What it adds:
+
+Persistent storage for shader corpus
+Vector similarity search
+Could cache rendered frames
+
+But here's the thing: Redis is only valuable *if you have a corpus to store.
+Without Browserbase, what goes in Redis?
+
+Your own generated shaders? (small value)
+Manually curated examples? (maybe 20-30, not worth a database)
+
+Redis makes Browserbase better, but Browserbase can work without Redis (just keep corpus in memory or JSON file for hackathon).
