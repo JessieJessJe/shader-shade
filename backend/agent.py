@@ -8,7 +8,6 @@ import weave
 from openai import OpenAI
 
 DEFAULT_FRAGMENT_SHADER = """#version 330
-uniform sampler2D u_input;
 uniform vec2 u_resolution;
 uniform float u_time;
 
@@ -34,9 +33,7 @@ void main() {
     vec2 uv = v_uv;
     float n = noise(uv * 4.0 + u_time * 0.05);
     vec3 base = vec3(n);
-    vec3 target = texture(u_input, uv).rgb;
-    vec3 color = mix(base, target, 0.35);
-    f_color = vec4(color, 1.0);
+    f_color = vec4(base, 1.0);
 }
 """
 
@@ -81,8 +78,9 @@ def generate_shader(
             "Required interface:\n"
             "- Version: #version 330\n"
             "- Inputs: in vec2 v_uv;\n"
-            "- Uniforms: sampler2D u_input, vec2 u_resolution, float u_time\n"
+            "- Uniforms: vec2 u_resolution, float u_time\n"
             "- Output: out vec4 f_color\n"
+            "Do NOT sample or reference the uploaded image (no u_input usage).\n"
             "Return JSON with keys: fragment_shader, notes.\n"
             f"Iteration {iteration + 1} of {total_iterations}.\n"
             f"Weights: {json.dumps(weights)}\n"
