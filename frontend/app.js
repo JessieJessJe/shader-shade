@@ -2,8 +2,10 @@ const fileInput = document.getElementById("fileInput");
 const uploadBtn = document.getElementById("uploadBtn");
 const runBtn = document.getElementById("runBtn");
 const uploadStatus = document.getElementById("uploadStatus");
+const runStatus = document.getElementById("runStatus");
 const iterationsEl = document.getElementById("iterations");
 const bestEl = document.getElementById("best");
+const originalImage = document.getElementById("originalImage");
 
 const fftWeight = document.getElementById("fftWeight");
 const edgeWeight = document.getElementById("edgeWeight");
@@ -13,6 +15,8 @@ const edgeVal = document.getElementById("edgeVal");
 const gramVal = document.getElementById("gramVal");
 
 let imageId = null;
+originalImage.src = "/assets/uploads/test1.png";
+uploadStatus.textContent = "Using default image: /assets/uploads/test1.png";
 
 function updateLabels() {
   fftVal.textContent = Number(fftWeight.value).toFixed(2);
@@ -38,20 +42,19 @@ uploadBtn.addEventListener("click", async () => {
   const data = await res.json();
   imageId = data.image_id;
 
-  uploadStatus.textContent = `Uploaded: ${data.path}`;
-  runBtn.disabled = false;
+  originalImage.src = URL.createObjectURL(file);
+  uploadStatus.textContent = "Uploaded to memory. Ready to run.";
 });
 
 runBtn.addEventListener("click", async () => {
-  if (!imageId) return;
-
   iterationsEl.innerHTML = "";
   bestEl.innerHTML = "";
-  runBtn.disabled = true;
+  runStatus.textContent = "Starting run...";
+  runStatus.classList.add("running");
 
   const payload = {
     image_id: imageId,
-    iterations: 4,
+    iterations: 5,
     weights: {
       fft: Number(fftWeight.value),
       edge: Number(edgeWeight.value),
@@ -59,22 +62,37 @@ runBtn.addEventListener("click", async () => {
     },
   };
 
-  const res = await fetch("/api/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json();
+  let data = null;
+  try {
+    runStatus.textContent = `Running ${payload.iterations} iterations...`;
+    const res = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    data = await res.json();
+  } catch (err) {
+    runStatus.textContent = `Run failed: ${err}`;
+    runStatus.classList.remove("running");
+    return;
+  }
+
+  if (data.input_image) {
+    originalImage.src = data.input_image;
+  }
 
   data.iterations.forEach((iter) => {
-    const params = iter.params || {};
     const card = document.createElement("div");
     card.className = "iter-card";
     card.innerHTML = `
       <div>Iteration ${iter.iteration}</div>
       <div>Score: ${iter.score.toFixed(3)}</div>
-      <div class="muted">freq ${Number(params.frequency || 0).toFixed(2)} · blend ${Number(params.blend || 0).toFixed(2)}</div>
+      ${iter.compile_error ? `<div class="muted">Compile error: ${iter.compile_error}</div>` : ""}
       <img src="${iter.render_path}" alt="iteration ${iter.iteration}" />
+      <details>
+        <summary>GLSL</summary>
+        <pre>${iter.shader_code}</pre>
+      </details>
     `;
     iterationsEl.appendChild(card);
   });
@@ -87,5 +105,6 @@ runBtn.addEventListener("click", async () => {
     `;
   }
 
-  runBtn.disabled = false;
+  runStatus.textContent = "Run complete.";
+  runStatus.classList.remove("running");
 });

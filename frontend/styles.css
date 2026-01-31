@@ -62,6 +62,21 @@ button:disabled {
   margin-top: 8px;
 }
 
+.status {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #0f1a2a;
+  border: 1px solid #1f2a3a;
+  color: var(--text);
+  min-height: 20px;
+}
+
+.status.running::after {
+  content: " • running";
+  color: var(--accent);
+}
+
 .slider {
   display: grid;
   grid-template-columns: 120px 1fr;
@@ -89,6 +104,12 @@ button:disabled {
 }
 
 #best img {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 12px;
+}
+
+#originalImage {
   width: 100%;
   max-width: 420px;
   border-radius: 12px;

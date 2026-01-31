@@ -2,24 +2,43 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional
 
 import weave
 from openai import OpenAI
 
-DEFAULT_PARAMS = {"frequency": 3.0, "blend": 0.3, "time_scale": 0.05}
+DEFAULT_FRAGMENT_SHADER = """#version 330
+uniform sampler2D u_input;
+uniform vec2 u_resolution;
+uniform float u_time;
 
+in vec2 v_uv;
+out vec4 f_color;
 
-def _clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, value))
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
 
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
 
-def _safe_float(value: Any, default: float) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
+void main() {
+    vec2 uv = v_uv;
+    float n = noise(uv * 4.0 + u_time * 0.05);
+    vec3 base = vec3(n);
+    vec3 target = texture(u_input, uv).rgb;
+    vec3 color = mix(base, target, 0.35);
+    f_color = vec4(color, 1.0);
+}
+"""
 
 def _init_weave() -> None:
     if os.getenv("WEAVE_DISABLED") in {"1", "true", "TRUE"}:
@@ -38,17 +57,17 @@ _init_weave()
 
 
 @weave.op()
-def generate_params(
+def generate_shader(
     *,
     iteration: int,
     total_iterations: int,
     weights: Dict[str, float],
     prev_scores: Optional[Dict[str, float]],
-    prev_params: Optional[Dict[str, float]],
-) -> Dict[str, Any]:
+    prev_shader: Optional[str],
+) -> Dict[str, object]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        return {"params": DEFAULT_PARAMS.copy(), "notes": "OPENAI_API_KEY not set"}
+        return {"fragment_shader": DEFAULT_FRAGMENT_SHADER, "notes": "OPENAI_API_KEY not set"}
 
     client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
@@ -56,14 +75,19 @@ def generate_params(
     prompt = {
         "role": "user",
         "content": (
-            "You are a shader tuning assistant. Return JSON only.\n"
-            "Goal: noise-first tuning. Adjust noise params to better match texture stats.\n"
+            "You are a shader generation assistant. Return JSON only.\n"
+            "Goal: produce a full GLSL fragment shader that runs with the provided vertex shader.\n"
+            "Focus on procedural/noise-driven texture synthesis. No constraints beyond validity.\n"
+            "Required interface:\n"
+            "- Version: #version 330\n"
+            "- Inputs: in vec2 v_uv;\n"
+            "- Uniforms: sampler2D u_input, vec2 u_resolution, float u_time\n"
+            "- Output: out vec4 f_color\n"
+            "Return JSON with keys: fragment_shader, notes.\n"
             f"Iteration {iteration + 1} of {total_iterations}.\n"
             f"Weights: {json.dumps(weights)}\n"
             f"Previous scores: {json.dumps(prev_scores or {})}\n"
-            f"Previous params: {json.dumps(prev_params or DEFAULT_PARAMS)}\n\n"
-            "Return JSON with keys: frequency, blend, time_scale, notes.\n"
-            "Ranges: frequency 0.5-12.0, blend 0.1-0.95, time_scale 0.0-0.2.\n"
+            f"Previous shader: {json.dumps(prev_shader or '')}\n\n"
             "notes should be a short string explaining the change."
         ),
     }
@@ -85,17 +109,11 @@ def generate_params(
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        return {"params": DEFAULT_PARAMS.copy(), "notes": "JSON parse failed"}
+        return {"fragment_shader": DEFAULT_FRAGMENT_SHADER, "notes": "JSON parse failed"}
 
-    freq = _safe_float(data.get("frequency"), DEFAULT_PARAMS["frequency"])
-    blend = _safe_float(data.get("blend"), DEFAULT_PARAMS["blend"])
-    time_scale = _safe_float(data.get("time_scale"), DEFAULT_PARAMS["time_scale"])
-
-    params = {
-        "frequency": _clamp(freq, 0.5, 12.0),
-        "blend": _clamp(blend, 0.1, 0.95),
-        "time_scale": _clamp(time_scale, 0.0, 0.2),
-    }
+    fragment_shader = data.get("fragment_shader")
+    if not isinstance(fragment_shader, str) or "#version" not in fragment_shader:
+        fragment_shader = DEFAULT_FRAGMENT_SHADER
 
     notes = data.get("notes", "") if isinstance(data.get("notes"), str) else ""
-    return {"params": params, "notes": notes}
+    return {"fragment_shader": fragment_shader, "notes": notes}
