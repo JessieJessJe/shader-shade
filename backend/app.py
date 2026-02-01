@@ -79,6 +79,11 @@ def index() -> str:
     return (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
 
 
+@app.get("/landing", response_class=HTMLResponse)
+def landing() -> str:
+    return (FRONTEND_DIR / "landing.html").read_text(encoding="utf-8")
+
+
 @app.post("/api/upload")
 async def upload_image(file: UploadFile = File(...)) -> JSONResponse:
     contents = await file.read()

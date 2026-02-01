@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>La Shader is Shading</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Indie+Flower&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/landing.css" />
+  </head>
+  <body>
+
+    <!-- Sticky nav -->
+    <nav class="landing-nav" id="landingNav">
+      <div class="landing-nav-inner">
+        <span class="nav-brand">La Shader is Shading</span>
+        <div class="nav-links">
+          <a href="#problem">Problem</a>
+          <a href="#how-it-works">How it Works</a>
+          <a href="#demo">Demo</a>
+          <a href="#weave">Weave</a>
+          <a href="https://github.com/JessieJessJe/shader-shade" class="nav-cta" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="page landing">
+
+      <!-- ════ 1. Hero ════ -->
+      <section class="hero" id="hero">
+        <h1>La Shader is Shading</h1>
+        <p class="hero-subtitle">the best is yet to come</p>
+        <p class="hero-tagline">
+          Turn any image into GLSL fragment shader code through a self-improving agentic loop.
+        </p>
+        <div class="card">
+          <img
+            class="hero-img"
+            src="/assets/presentation/self-improving-step.png"
+            alt="Discovery analysis and iteration grid showing LPIPS scores improving"
+          />
+        </div>
+        <div class="scroll-hint" aria-hidden="true">&darr;</div>
+      </section>
+
+      <!-- ════ 2. The Problem ════ -->
+      <section class="landing-section" id="problem">
+        <h2>Why this is hard</h2>
+        <div class="two-col">
+          <div class="two-col-text">
+            <p>
+              Artists don't want to be copied. The question is: how do you use generative AI as a shader-making
+              <em>tool</em> rather than a replacement?
+            </p>
+            <p>
+              Shader code is notoriously difficult to vibe-code. The gap between a visual idea and the GLSL
+              math that produces it is enormous. Fragment shaders run per-pixel in parallel on the GPU -- there's
+              no memory between pixels, no iteration history, and no way to "look at the whole image."
+            </p>
+            <p>
+              Current AI models fail at direct image-to-GLSL generation. The output bears little resemblance
+              to the target.
+            </p>
+          </div>
+          <figure>
+            <img
+              src="/assets/presentation/claude_output.png"
+              alt="Claude attempting to generate a shader from an image directly"
+              loading="lazy"
+            />
+            <figcaption>Direct LLM shader generation: the output doesn't match the target.</figcaption>
+          </figure>
+        </div>
+
+        <div class="expandable">
+          <button class="expandable-trigger" aria-expanded="false">
+            <span class="expandable-icon">+</span>
+            <span>Why is Image-to-GLSL fundamentally hard?</span>
+          </button>
+          <div class="expandable-content">
+            <div class="expandable-inner">
+              <p>
+                GLSL fragment shaders execute per-pixel in parallel on the GPU. There is no memory between pixels,
+                no iteration history, and no ability to "look at the whole image" from within the shader. Visual
+                effects like flow, turbulence, and organic patterns must be expressed as pure mathematical functions
+                of UV coordinates and time.
+              </p>
+              <p>
+                Current vision-language models understand image content but cannot reverse-engineer the mathematical
+                procedures that would produce those visuals. The mapping from "soft organic flowing particles" to
+                "layered fbm noise with curl-based advection" requires domain-specific knowledge that general models lack.
+              </p>
+              <p>
+                This is why a single-shot approach fails. You need an iterative loop: generate, render, compare,
+                critique, and refine -- exactly what this system does.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ 3. Solution + Architecture ════ -->
+      <section class="landing-section" id="how-it-works">
+        <h2>How it works</h2>
+        <p class="subtitle">
+          A vision model + code-editing LLM iteratively improve a shader to match a target image.
+        </p>
+
+        <!-- Pipeline diagram -->
+        <div class="pipeline">
+
+          <!-- Phase A: Discovery -->
+          <div class="phase-box">
+            <span class="phase-label">Phase A: Discovery</span>
+            <div class="pipe-row">
+              <div class="pipe-node">
+                Reference Text
+                <span class="tech-badge">Anchor shader</span>
+              </div>
+              <span class="pipe-arrow">+</span>
+              <div class="pipe-node">
+                Target Image
+                <span class="tech-badge">User upload</span>
+              </div>
+              <span class="pipe-arrow">&rarr;</span>
+              <div class="pipe-node">
+                Gap Analysis
+                <span class="tech-badge">GPT-4.1-mini</span>
+              </div>
+              <span class="pipe-arrow">&rarr;</span>
+              <div class="pipe-node">
+                Tailored Prompts
+                <span class="tech-badge">SIMILAR | DIFFERENT | BRIDGE</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pipe-arrow-down">&darr;</div>
+
+          <!-- Phase B: Iteration Loop -->
+          <div class="phase-box">
+            <span class="phase-label">Phase B: Iteration Loop</span>
+
+            <div class="pipe-row">
+              <div class="pipe-node">
+                Generate / Edit Shader
+                <span class="tech-badge">GPT-4.1-mini</span>
+              </div>
+              <span class="pipe-arrow">&rarr;</span>
+              <div class="pipe-node">
+                Render Frames
+                <span class="tech-badge">ModernGL</span>
+              </div>
+            </div>
+
+            <div class="pipe-arrow-down">&darr;</div>
+
+            <div class="pipe-row">
+              <div class="pipe-branch">
+                <div class="pipe-node">
+                  Score
+                  <span class="tech-badge">LPIPS / AlexNet</span>
+                </div>
+                <span class="pipe-plus">+</span>
+                <div class="pipe-node">
+                  Critique
+                  <span class="tech-badge">GPT-4o-mini (Vision)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pipe-arrow-down">&darr;</div>
+
+            <div class="pipe-row">
+              <div class="pipe-node">
+                Log &amp; Trace
+                <span class="tech-badge">Weave / W&amp;B</span>
+              </div>
+            </div>
+
+            <div class="loop-label">&uarr; repeat N iterations &middot; feedback drives the next edit &darr;</div>
+          </div>
+
+          <div class="pipe-arrow-down">&darr;</div>
+
+          <div class="pipe-row">
+            <div class="pipe-node">
+              Best Output
+              <span class="tech-badge">Lowest LPIPS score</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ════ 4. Demo Walkthrough ════ -->
+      <section class="landing-section" id="demo">
+        <h2>MVP walkthrough</h2>
+
+        <!-- Beat 1: Target + Reference -->
+        <div class="showcase">
+          <div class="showcase-text">
+            <h3>Upload a target, ground with a reference</h3>
+            <p>
+              Provide any image as the visual target. Optionally pair it with a reference shader
+              (e.g. a ShaderToy effect) as a starting point. The Discovery phase analyzes what
+              techniques to borrow, what to change, and what to adapt.
+            </p>
+          </div>
+          <figure class="showcase-img">
+            <img
+              src="/assets/presentation/input.png"
+              alt="App input section with target image"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+
+        <!-- Beat 2: Discovery + Iteration -->
+        <div class="showcase">
+          <div class="showcase-text">
+            <h3>Discovery + Iteration</h3>
+            <p>
+              The agent runs gap analysis, classifying techniques as SIMILAR, DIFFERENT, or BRIDGE NEEDED.
+              Then it iterates: generate GLSL, render frames via ModernGL, score with LPIPS, critique
+              with GPT-4 Vision, and feed back. Watch the LPIPS scores converge.
+            </p>
+          </div>
+          <figure class="showcase-img">
+            <img
+              src="/assets/presentation/self-improving-step.png"
+              alt="Iterations grid showing LPIPS scores improving across iterations"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+
+        <!-- Beat 3: VLM Critique -->
+        <div class="showcase">
+          <div class="showcase-text">
+            <h3>VLM Critique</h3>
+            <p>
+              Like a studio critique: the vision model identifies COLOR DELTA, WHAT'S WORKING,
+              and WHAT NEEDS TO CHANGE. Color matching is always the #1 priority.
+              This structured feedback drives the next edit.
+            </p>
+          </div>
+          <figure class="showcase-img">
+            <img
+              src="/assets/presentation/VLM-self-critique.png"
+              alt="Critique modal showing structured VLM analysis"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+
+        <!-- Beat 4: Evaluation -->
+        <div class="showcase">
+          <div class="showcase-text">
+            <h3>Evaluation with LPIPS</h3>
+            <p>
+              LPIPS (Learned Perceptual Image Patch Similarity) uses a pre-trained AlexNet to measure
+              perceptual distance -- how different two images <em>look</em> to a human, not how
+              different they are pixel-by-pixel. Lower is better.
+            </p>
+          </div>
+          <figure class="showcase-img">
+            <img
+              src="/assets/presentation/PerceptualSimilarity.png"
+              alt="LPIPS perceptual similarity paper"
+              loading="lazy"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <!-- ════ 5. Weave ════ -->
+      <section class="landing-section" id="weave">
+        <h2>Traced with Weave</h2>
+
+        <div class="card">
+          <img
+            class="weave-hero-img"
+            src="/assets/presentation/weave_tracing.png"
+            alt="Weave dashboard showing traced edit_shader calls across iterations"
+            loading="lazy"
+          />
+        </div>
+
+        <div class="weave-highlights">
+          <div class="weave-highlight">
+            <strong>Full Trace</strong>
+            Every LLM call -- discovery, generation, editing, repair -- is traced end-to-end.
+          </div>
+          <div class="weave-highlight">
+            <strong>Error Recovery</strong>
+            Compile errors are caught, diagnosed, and auto-repaired. The agent consults learned GLSL rules before every generation.
+          </div>
+          <div class="weave-highlight">
+            <strong>Visibility</strong>
+            Full observability into the agent's decision-making at every iteration: prompts, responses, scores, and critique.
+          </div>
+        </div>
+
+        <h3>GLSL compile rules the agent learned</h3>
+        <div class="code-preview">GLSL COMPILE RULES -- check these before outputting any shader:
+
+1. VECTOR CONSTRUCTORS: exact component count required.
+   vec3(vec2, float) OK | vec3(vec2, vec2) WRONG (4 into 3)
+
+2. MATRIX MULTIPLY: matrix on LEFT only.
+   mat2*vec2 OK | vec2*mat2 WRONG
+
+3. MISSING FUNCTIONS: every function call needs a definition above the call site.
+
+4. CASCADING ERRORS: fix the FIRST error only.
+
+COMMON ERRORS:
+  "Incompatible types in initialization"  &rarr; wrong component count
+  "'*' does not operate on 'vecN' and 'matN'" &rarr; put matrix on LEFT
+  "undeclared identifier 'X'"  &rarr; add missing function definition</div>
+
+        <div class="expandable">
+          <button class="expandable-trigger" aria-expanded="false">
+            <span class="expandable-icon">+</span>
+            <span>Full GLSL error patterns we identified</span>
+          </button>
+          <div class="expandable-content">
+            <div class="expandable-inner">
+              <pre><code>## Vector Constructor Rules
+GLSL constructors require exact component counts.
+Mismatches cause silent failures that cascade into
+"undeclared identifier" errors.
+
+vec3 b0 = vec3(x.xy, y.xy);  // WRONG: 4 into vec3
+vec3 b0 = vec3(x.xy, y.z);   // OK: 3 into vec3
+
+## Matrix Multiplication Rules
+GLSL matrix multiply is order-dependent.
+Matrix must be on the LEFT.
+
+vec2 s = vec2(x.x, x.y) * m;  // WRONG
+vec2 s = m * vec2(x.x, x.y);  // OK
+
+Safer alternative: use dot products instead of
+matrix multiplication for hash functions.
+
+## Missing Function Definitions
+Every function call must have a corresponding
+definition. Common causes:
+- Incomplete copy-paste from reference code
+- Missing utility/helper functions
+- Typo in function name
+
+## Debugging Cascading Errors
+When you see multiple errors, the root cause is
+always the FIRST error. Fix line N; the rest resolve.
+
+## Common Error Summary
+| Error | Fix |
+| Incompatible types     | Count components |
+| '*' does not operate   | Matrix on LEFT   |
+| undeclared identifier  | Add function def |</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ 6. CTA + Footer ════ -->
+      <section class="cta-section">
+        <h2>Check it out</h2>
+        <div class="cta-row">
+          <a href="https://www.youtube.com/watch?v=1Zk7EOqembw" class="cta-btn" target="_blank" rel="noopener">Demo Video</a>
+          <a href="https://github.com/JessieJessJe/shader-shade" class="cta-btn cta-btn-outline" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </section>
+
+      <footer class="landing-footer">
+        La Shader is Shading &middot; Jessie Han
+      </footer>
+
+    </main>
+
+    <script src="/static/landing.js"></script>
+  </body>
+</html>
