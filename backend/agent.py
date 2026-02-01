@@ -10,6 +10,7 @@ from openai import OpenAI
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 REFERENCE_SUMMARY_PATH = BASE_DIR / "notes" / "reference_particle_flow_summary.txt"
+GLSL_RULES_PATH = BASE_DIR / "notes" / "glsl_rules_condensed.txt"
 
 INTERFACE_CONTRACT = (
     "Shader interface contract (must follow exactly):\n"
@@ -17,17 +18,6 @@ INTERFACE_CONTRACT = (
     "- Inputs: in vec2 v_uv;\n"
     "- Uniforms: sampler2D u_input, vec2 u_resolution, float u_time\n"
     "- Output: out vec4 f_color\n"
-)
-
-GLSL_COMPILE_RULES = (
-    "GLSL compile rules (check these when fixing):\n"
-    "- vec constructors must have EXACT component count: "
-    "vec3(vec2,float) OK, vec3(vec2,vec2) WRONG (4 components)\n"
-    "- Matrix multiply: matrix on LEFT only. mat2*vec2 OK, vec2*mat2 WRONG\n"
-    "- Prefer dot-product hashes over matrix-based hashes to avoid mat errors\n"
-    "- Cascading errors: fix the FIRST error only; later 'undeclared identifier' "
-    "errors usually resolve once the root cause is fixed\n"
-    "- Safe hash: fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453)\n"
 )
 
 DEFAULT_FRAGMENT_SHADER = """#version 330
@@ -83,6 +73,12 @@ _init_weave()
 def _load_reference_summary() -> str:
     if REFERENCE_SUMMARY_PATH.exists():
         return REFERENCE_SUMMARY_PATH.read_text(encoding="utf-8").strip()
+    return ""
+
+
+def _load_glsl_rules() -> str:
+    if GLSL_RULES_PATH.exists():
+        return GLSL_RULES_PATH.read_text(encoding="utf-8").strip()
     return ""
 
 
@@ -194,11 +190,20 @@ def run_discovery(*, reference_text: str | None) -> Dict[str, object]:
         ],
     )
 
+    def _ensure_str(val: object) -> str:
+        if isinstance(val, str):
+            return val
+        if isinstance(val, dict):
+            return json.dumps(val, indent=2)
+        if isinstance(val, list):
+            return json.dumps(val, indent=2)
+        return str(val) if val else ""
+
     return {
-        "gap_analysis": data.get("gap_analysis", ""),
-        "initial_prompt": data.get("initial_prompt", ""),
-        "edit_prompt": data.get("edit_prompt", ""),
-        "notes": data.get("notes", ""),
+        "gap_analysis": _ensure_str(data.get("gap_analysis", "")),
+        "initial_prompt": _ensure_str(data.get("initial_prompt", "")),
+        "edit_prompt": _ensure_str(data.get("edit_prompt", "")),
+        "notes": _ensure_str(data.get("notes", "")),
     }
 
 
@@ -214,8 +219,11 @@ def generate_initial_shader(
         return {"fragment_shader": DEFAULT_FRAGMENT_SHADER, "notes": "OPENAI_API_KEY not set"}
 
     reference_summary = reference_text or _load_reference_summary()
+    glsl_rules = _load_glsl_rules()
     client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+    rules_block = f"\n{glsl_rules}\n" if glsl_rules else ""
 
     if discovery_context:
         prompt = (
@@ -225,6 +233,7 @@ def generate_initial_shader(
             "Do NOT map or sample the source image UVs as the primary structure.\n"
             "Use procedural structure; the source image is only a loose color/texture guide.\n"
             f"{INTERFACE_CONTRACT}\n"
+            f"{rules_block}"
             "Return JSON with keys: fragment_shader, notes.\n"
             f"Target description: {target_description or 'N/A'}\n\n"
             f"DISCOVERY-GUIDED INSTRUCTIONS (follow these closely):\n{discovery_context}\n\n"
@@ -242,6 +251,7 @@ def generate_initial_shader(
             "Capture the core effect (soft particle flow + glow impression).\n"
             "Avoid Shadertoy buffers; do everything in one fragment shader.\n"
             f"{INTERFACE_CONTRACT}\n"
+            f"{rules_block}"
             "Return JSON with keys: fragment_shader, notes.\n"
             f"Target description: {target_description or 'N/A'}\n"
             f"Reference summary:\n{reference_summary}\n"
@@ -273,14 +283,26 @@ def edit_shader(
     target_description: str | None,
     reference_text: str | None = None,
     discovery_context: str | None = None,
+    iteration: int = 0,
+    total_iterations: int = 1,
 ) -> Dict[str, object]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return {"fragment_shader": current_shader, "notes": "OPENAI_API_KEY not set"}
 
     reference_summary = reference_text or _load_reference_summary()
+    glsl_rules = _load_glsl_rules()
     client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+    rules_block = f"\n{glsl_rules}\n" if glsl_rules else ""
+
+    early = iteration < total_iterations // 2
+    pacing = (
+        "This is an EARLY iteration — prioritize bold structural changes over fine-tuning."
+        if early
+        else "This is a LATE iteration — prioritize refinement and subtle adjustments over large rewrites."
+    )
 
     if discovery_context:
         prompt = (
@@ -290,6 +312,8 @@ def edit_shader(
             "Use procedural structure; the source image is only a loose color/texture guide.\n"
             "Apply the critique, keep the interface contract unchanged.\n"
             f"{INTERFACE_CONTRACT}\n"
+            f"{rules_block}"
+            f"Iteration {iteration + 1} of {total_iterations}. {pacing}\n"
             f"Target description: {target_description or 'N/A'}\n"
             f"Critique:\n{critique_text}\n\n"
             f"DISCOVERY-GUIDED PRIORITIES (use these to decide what to fix first):\n{discovery_context}\n\n"
@@ -305,6 +329,8 @@ def edit_shader(
             "Use procedural structure; the source image is only a loose color/texture guide.\n"
             "Apply the critique, keep the interface contract unchanged.\n"
             f"{INTERFACE_CONTRACT}\n"
+            f"{rules_block}"
+            f"Iteration {iteration + 1} of {total_iterations}. {pacing}\n"
             f"Target description: {target_description or 'N/A'}\n"
             f"Critique:\n{critique_text}\n"
             f"Reference summary:\n{reference_summary}\n"
@@ -338,11 +364,14 @@ def fix_compile_errors(*, shader: str, compile_error: str) -> Dict[str, object]:
     client = OpenAI(api_key=api_key)
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
+    glsl_rules = _load_glsl_rules()
+    rules_block = f"\n{glsl_rules}\n" if glsl_rules else ""
+
     prompt = (
         "You are a shader repair assistant. Return JSON only.\n"
         "Fix compile errors without changing the visual intent.\n"
         f"{INTERFACE_CONTRACT}\n"
-        f"{GLSL_COMPILE_RULES}\n"
+        f"{rules_block}"
         f"Compile error:\n{compile_error}\n"
         "Return JSON with keys: fragment_shader, notes.\n"
     )

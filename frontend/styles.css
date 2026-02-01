@@ -1,9 +1,13 @@
 :root {
-  --bg: #0b0f1a;
-  --card: #121826;
-  --text: #f4f6fb;
-  --muted: #9aa3b2;
-  --accent: #00d2ff;
+  --bg: #eef1f6;
+  --card: rgba(255, 255, 255, 0.45);
+  --card-border: rgba(255, 255, 255, 0.6);
+  --text: #1a1d24;
+  --muted: #6b7280;
+  --accent: #1a1d24;
+  --glass-blur: 18px;
+  --glass-inner: rgba(255, 255, 255, 0.35);
+  --glass-inner-border: rgba(255, 255, 255, 0.5);
 }
 
 * {
@@ -16,9 +20,12 @@
 
 body {
   margin: 0;
-  font-family: "Space Grotesk", "Avenir", "Segoe UI", sans-serif;
-  background: radial-gradient(circle at top left, #162133, #0b0f1a 60%);
+  font-family: "Satoshi", "Avenir", "Segoe UI", sans-serif;
+  background: linear-gradient(135deg, #dfe6f0 0%, #e8ecf4 30%, #f0e6f0 60%, #e4eaf4 100%);
+  min-height: 100vh;
   color: var(--text);
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .page {
@@ -27,17 +34,45 @@ body {
   padding: 32px 20px 60px;
 }
 
+h1, h2, h3 {
+  font-family: "Indie Flower", cursive;
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: clamp(1.8rem, 5vw, 2.8rem);
+}
+
+h2 {
+  font-size: clamp(1.3rem, 3.5vw, 1.8rem);
+}
+
+h3 {
+  font-size: clamp(1.1rem, 3vw, 1.5rem);
+}
+
+pre, code {
+  font-family: "JetBrains Mono", monospace;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .header h1 {
   margin-bottom: 8px;
 }
 
 .card {
   background: var(--card);
-  border: 1px solid #1f2a3a;
+  border: 1px solid var(--card-border);
   border-radius: 16px;
   padding: 20px;
   margin: 18px 0;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
 .row {
@@ -62,7 +97,7 @@ body {
 button {
   background: var(--accent);
   border: none;
-  color: #001018;
+  color: #ffffff;
   font-weight: 600;
   padding: 10px 16px;
   border-radius: 8px;
@@ -70,7 +105,7 @@ button {
 }
 
 button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -83,16 +118,18 @@ button:disabled {
   margin-top: 10px;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #0f1a2a;
-  border: 1px solid #1f2a3a;
+  background: var(--glass-inner);
+  border: 1px solid var(--glass-inner-border);
   color: var(--text);
   min-height: 20px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .progress {
   margin-top: 10px;
-  background: #0f1a2a;
-  border: 1px solid #1f2a3a;
+  background: var(--glass-inner);
+  border: 1px solid var(--glass-inner-border);
   border-radius: 999px;
   height: 10px;
   overflow: hidden;
@@ -101,7 +138,7 @@ button:disabled {
 .progress-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #00d2ff, #3cffc4);
+  background: linear-gradient(90deg, #1a1d24, #4a5060);
   transition: width 0.4s ease;
 }
 
@@ -125,8 +162,8 @@ button:disabled {
 }
 
 .status.running::after {
-  content: " • running";
-  color: var(--accent);
+  content: " \2022  running";
+  color: var(--muted);
 }
 
 .slider {
@@ -149,22 +186,27 @@ button:disabled {
 }
 
 .field input {
-  background: #0f1a2a;
-  border: 1px solid #1f2a3a;
+  background: var(--glass-inner);
+  border: 1px solid var(--glass-inner-border);
   color: var(--text);
   border-radius: 8px;
   padding: 8px 10px;
-  width: 120px;
+  width: 100%;
+  max-width: 120px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .field textarea {
-  background: #0f1a2a;
-  border: 1px solid #1f2a3a;
+  background: var(--glass-inner);
+  border: 1px solid var(--glass-inner-border);
   color: var(--text);
   border-radius: 8px;
   padding: 10px;
   resize: vertical;
   width: 100%;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .notes {
@@ -177,15 +219,37 @@ button:disabled {
 }
 
 .note-item {
-  background: #0e1424;
-  border: 1px solid #1a2336;
+  background: var(--glass-inner);
+  border: 1px solid var(--glass-inner-border);
   border-radius: 12px;
   padding: 12px;
+  min-width: 0;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .note-title {
   font-weight: 600;
   margin-bottom: 6px;
+}
+
+.discovery-card {
+  display: grid;
+  gap: 16px;
+}
+
+.discovery-section {
+  line-height: 1.6;
+}
+
+.discovery-label {
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
 }
 
 .grid {
@@ -195,10 +259,14 @@ button:disabled {
 }
 
 .iter-card {
-  background: #0e1424;
-  border: 1px solid #1a2336;
+  background: var(--glass-inner);
+  border: 1px solid var(--glass-inner-border);
   border-radius: 12px;
   padding: 10px;
+  min-width: 0;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .iter-card img {
@@ -219,11 +287,13 @@ button:disabled {
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 14, 0.78);
+  background: rgba(200, 205, 215, 0.6);
   display: grid;
   place-items: center;
   padding: 24px;
   z-index: 50;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .modal.hidden {
@@ -231,26 +301,29 @@ button:disabled {
 }
 
 .modal-content {
-  background: #0e1424;
-  border: 1px solid #1a2336;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.8);
   border-radius: 16px;
   padding: 20px;
   width: min(720px, 92vw);
   max-height: 80vh;
   overflow: auto;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 .modal-close {
-  background: #223049;
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text);
   margin-bottom: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .modal-trigger {
-  background: #223049;
+  background: rgba(0, 0, 0, 0.06);
   color: var(--text);
-  border: 1px solid #2c3a52;
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   padding: 6px 10px;
   cursor: pointer;
@@ -272,4 +345,41 @@ button:disabled {
   font-size: 0.75rem;
   text-align: center;
   margin-top: 4px;
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 16px 12px 40px;
+  }
+
+  .card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .field input {
+    max-width: none;
+  }
+
+  button {
+    width: 100%;
+  }
+
+  .modal-content {
+    padding: 14px;
+    width: min(720px, 96vw);
+  }
+
+  .modal-trigger {
+    width: auto;
+  }
 }

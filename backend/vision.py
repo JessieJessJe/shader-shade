@@ -39,14 +39,14 @@ def critique_images(
         "STRUCTURE: shape/form issues\n"
         "EDGES: silhouettes/edge brightness\n"
         "TEXTURE: grain/smoothness/density\n"
-        "COLOR/CONTRAST: palette and contrast\n"
+        "COLOR/CONTRAST: colors should match the TARGET image, not the reference shader. Note palette and contrast differences.\n"
         "Provide your analysis as:\n"
+        "SIMILARITY SCORE: <1-10, where 1 = completely different, 10 = nearly identical>\n"
+        "BIGGEST GAP: <single most important difference to fix next>\n"
         "WHAT'S WORKING:\n"
         "- ...\n"
-        "WHAT NEEDS TO CHANGE:\n"
+        "WHAT NEEDS TO CHANGE (ranked by priority, most important first):\n"
         "- ...\n"
-        "SUGGESTED GLSL FIXES:\n"
-        "- 2 to 3 concrete code-level suggestions\n"
     )
 
     target_url = _image_to_data_url(target_img)

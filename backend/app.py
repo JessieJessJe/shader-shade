@@ -38,7 +38,7 @@ DEFAULT_IMAGE_PATH = UPLOADS_DIR / "test1.png"
 for p in (UPLOADS_DIR, RENDERS_DIR):
     p.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="Shader Agent MVP")
+app = FastAPI(title="La Shader is Shading")
 
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
@@ -153,6 +153,8 @@ async def run_loop(payload: RunRequest):
                     target_description=None,
                     reference_text=ref_text,
                     discovery_context=discovery_edit,
+                    iteration=i,
+                    total_iterations=num_iterations,
                 )
             fragment_shader = agent_out.get("fragment_shader", DEFAULT_FRAGMENT_SHADER)
             compile_error = ""

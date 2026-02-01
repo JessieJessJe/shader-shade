@@ -18,7 +18,6 @@ const modalBody = document.getElementById("modalBody");
 const modalClose = document.getElementById("modalClose");
 
 let imageId = null;
-let currentShader = null;
 let activeIntervals = [];
 originalImage.src = "/assets/uploads/test1.png";
 uploadStatus.textContent = "Using default image: /assets/uploads/test1.png";
@@ -93,7 +92,6 @@ uploadBtn.addEventListener("click", async () => {
 
 const addIterationCard = (iter) => {
   const lpips = iter.lpips_score;
-  currentShader = iter.shader_code;
   const card = document.createElement("div");
   card.className = "iter-card";
   const compileStatus = iter.compile_error ? "compile error" : "compiled";
@@ -218,16 +216,27 @@ runBtn.addEventListener("click", async () => {
       } else if (eventType === "discovery") {
         runStatus.textContent = `Running iteration 1 of ${iterationsValue}...`;
         if (progressBar) progressBar.style.width = `${Math.round(100 / (iterationsValue + 1))}%`;
+        let gapHtml = "";
         if (data.gap_analysis) {
-          const block = document.createElement("div");
-          block.className = "note-item";
-          block.innerHTML = `
-            <div class="note-title">Discovery: Gap Analysis</div>
-            <pre>${data.gap_analysis}</pre>
-            ${data.notes ? `<div class="muted" style="margin-top:0.5em">${data.notes}</div>` : ""}
-          `;
-          discoveryNotesEl.appendChild(block);
+          let gap = data.gap_analysis;
+          if (typeof gap === "string") {
+            try { gap = JSON.parse(gap); } catch {}
+          }
+          if (typeof gap === "object" && gap !== null) {
+            for (const [key, value] of Object.entries(gap)) {
+              gapHtml += `<div class="discovery-section"><div class="discovery-label">${key}</div><div>${value}</div></div>`;
+            }
+          } else {
+            gapHtml = `<div class="discovery-section"><div>${gap}</div></div>`;
+          }
         }
+        if (data.notes) {
+          gapHtml += `<div class="discovery-section"><div class="discovery-label">NOTES</div><div>${data.notes}</div></div>`;
+        }
+        const block = document.createElement("div");
+        block.className = "note-item discovery-card";
+        block.innerHTML = gapHtml;
+        discoveryNotesEl.appendChild(block);
       } else if (eventType === "iteration") {
         iterCount++;
         runStatus.textContent = iterCount < iterationsValue
@@ -250,7 +259,6 @@ runBtn.addEventListener("click", async () => {
             <button class="modal-trigger" data-title="Best GLSL" data-body="best-glsl">GLSL</button>
             <div class="hidden"><pre id="best-glsl">${data.shader_code}</pre></div>
           `;
-          currentShader = data.shader_code;
         }
       } else if (eventType === "done") {
         runStatus.textContent = "Run complete.";

@@ -1,4 +1,4 @@
-# Shader Agent MVP
+# La Shader is Shading
 
 This repository contains two phases of the shader agent:
 - **Phase I (legacy):** noise-focused loop with hand-crafted scoring.

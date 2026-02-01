@@ -1,0 +1,28 @@
+GLSL COMPILE RULES — check these before outputting any shader:
+
+1. VECTOR CONSTRUCTORS: exact component count required.
+   vec3(vec2, float) OK | vec3(vec2, vec2) WRONG (4 into 3)
+   vec4(vec2, vec2) OK | vec4(vec3, vec3) WRONG (6 into 4)
+
+2. MATRIX MULTIPLY: matrix on LEFT only.
+   mat2*vec2 OK | vec2*mat2 WRONG
+   Prefer dot-product hashes over matrix-based to avoid this entirely.
+
+3. MISSING FUNCTIONS: every function call needs a definition above the call site.
+   "undeclared identifier 'X'" usually means function X was never defined.
+   Include hash/noise utilities before using them.
+
+4. CASCADING ERRORS: fix the FIRST error only. Later "undeclared identifier"
+   errors are caused by the first failure preventing a variable from being declared.
+
+5. PRE-COMPILE CHECK:
+   - Count components in every vec constructor
+   - Matrix on left in all mat*vec operations
+   - All called functions are defined above call site
+   - #version 330 is the first line, not duplicated
+
+COMMON ERRORS:
+  "Incompatible types in initialization" → wrong component count in constructor
+  "'*' does not operate on 'vecN' and 'matN'" → put matrix on LEFT
+  "undeclared identifier 'X'" (function) → add missing function definition
+  "undeclared identifier 'X'" (variable, cascading) → fix the FIRST error above it
