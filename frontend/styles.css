@@ -241,38 +241,6 @@ button:disabled {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
 }
 
-.modal-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 16px;
-  margin-top: 10px;
-}
-
-.modal-pane {
-  background: #0b101d;
-  border: 1px solid #1a2336;
-  border-radius: 12px;
-  padding: 12px;
-  overflow: auto;
-}
-
-.modal-pane-title {
-  font-size: 0.85rem;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-#modalCode {
-  white-space: pre-wrap;
-  font-size: 0.85rem;
-}
-
-#modalCanvas {
-  width: 100%;
-  border-radius: 10px;
-  background: #05070e;
-}
-
 .modal-close {
   background: #223049;
   color: var(--text);
@@ -294,4 +262,14 @@ button:disabled {
   width: 100%;
   max-width: 420px;
   border-radius: 12px;
+}
+
+.frame-viewer {
+  position: relative;
+}
+
+.frame-counter {
+  font-size: 0.75rem;
+  text-align: center;
+  margin-top: 4px;
 }

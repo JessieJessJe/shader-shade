@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -11,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel, Field
@@ -21,9 +22,10 @@ from backend.agent import (
     edit_shader,
     fix_compile_errors,
     generate_initial_shader,
+    run_discovery,
 )
-from backend.metrics import compute_lpips
-from backend.render import render_iteration
+from backend.metrics import compute_lpips_multi
+from backend.render import render_iteration_frames
 from backend.vision import critique_images
 import weave
 
@@ -66,6 +68,7 @@ def health() -> JSONResponse:
 class RunRequest(BaseModel):
     image_id: str | None = Field(None, description="Upload id returned by /api/upload")
     iterations: int = Field(5, ge=1, le=8)
+    num_frames: int = Field(1, ge=1, le=30, description="Frames to render per iteration")
     reference_text: str | None = Field(
         None, description="Optional reference text overriding the default summary"
     )
@@ -85,8 +88,13 @@ async def upload_image(file: UploadFile = File(...)) -> JSONResponse:
     return JSONResponse({"image_id": "latest"})
 
 
+def _sse(event: str, data: dict) -> str:
+    """Format a server-sent event."""
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
 @app.post("/api/run")
-async def run_loop(payload: RunRequest) -> JSONResponse:
+async def run_loop(payload: RunRequest):
     input_img = None
     input_image_ref = None
 
@@ -105,107 +113,142 @@ async def run_loop(payload: RunRequest) -> JSONResponse:
         input_img = Image.open(DEFAULT_IMAGE_PATH)
         input_image_ref = "/assets/uploads/test1.png"
 
-    iterations = []
-    best = {"score": None, "render_path": "", "shader_code": "", "metric": ""}
-    prev_shader = None
-    prev_critique = None
-    last_good_shader = DEFAULT_FRAGMENT_SHADER
+    ref_text = payload.reference_text
+    num_iterations = payload.iterations
+    num_frames = payload.num_frames
 
-    for i in range(payload.iterations):
-        if i == 0:
-            agent_out = generate_initial_shader(
-                target_description=None, reference_text=payload.reference_text
-            )
-        else:
-            agent_out = edit_shader(
-                current_shader=prev_shader or last_good_shader,
-                critique_text=prev_critique or "No critique available.",
-                target_description=None,
-                reference_text=payload.reference_text,
-            )
-        fragment_shader = agent_out.get("fragment_shader", DEFAULT_FRAGMENT_SHADER)
-        compile_error = ""
-        try:
-            render_path, shader_code, render_img, input_img = render_iteration(
-                input_img=input_img,
-                iteration=i,
-                total_iterations=payload.iterations,
-                fragment_shader=fragment_shader,
-                output_dir=RENDERS_DIR,
-            )
-            last_good_shader = fragment_shader
-        except Exception as exc:
-            compile_error = str(exc)
-            repaired = fix_compile_errors(shader=fragment_shader, compile_error=compile_error)
-            repaired_shader = repaired.get("fragment_shader", last_good_shader)
+    def event_stream():
+        nonlocal input_img
+
+        # --- emit input image ---
+        yield _sse("input_image", {"input_image": input_image_ref})
+
+        # --- Phase A: Discovery ---
+        discovery = run_discovery(reference_text=ref_text)
+        discovery_initial = discovery.get("initial_prompt", "")
+        discovery_edit = discovery.get("edit_prompt", "")
+
+        yield _sse("discovery", {
+            "gap_analysis": discovery.get("gap_analysis", ""),
+            "notes": discovery.get("notes", ""),
+        })
+
+        # --- Phase B: Iteration loop ---
+        best = {"score": None, "render_path": "", "shader_code": "", "metric": ""}
+        prev_shader = None
+        prev_critique = None
+        last_good_shader = DEFAULT_FRAGMENT_SHADER
+
+        for i in range(num_iterations):
+            if i == 0:
+                agent_out = generate_initial_shader(
+                    target_description=None,
+                    reference_text=ref_text,
+                    discovery_context=discovery_initial,
+                )
+            else:
+                agent_out = edit_shader(
+                    current_shader=prev_shader or last_good_shader,
+                    critique_text=prev_critique or "No critique available.",
+                    target_description=None,
+                    reference_text=ref_text,
+                    discovery_context=discovery_edit,
+                )
+            fragment_shader = agent_out.get("fragment_shader", DEFAULT_FRAGMENT_SHADER)
+            compile_error = ""
             try:
-                render_path, shader_code, render_img, input_img = render_iteration(
+                render_paths, shader_code, render_imgs, input_img = render_iteration_frames(
                     input_img=input_img,
                     iteration=i,
-                    total_iterations=payload.iterations,
-                    fragment_shader=repaired_shader,
+                    total_iterations=num_iterations,
+                    fragment_shader=fragment_shader,
                     output_dir=RENDERS_DIR,
+                    num_frames=num_frames,
                 )
-                last_good_shader = repaired_shader
+                last_good_shader = fragment_shader
+            except Exception as exc:
+                compile_error = str(exc)
+                repaired = fix_compile_errors(shader=fragment_shader, compile_error=compile_error)
+                repaired_shader = repaired.get("fragment_shader", last_good_shader)
+                try:
+                    render_paths, shader_code, render_imgs, input_img = render_iteration_frames(
+                        input_img=input_img,
+                        iteration=i,
+                        total_iterations=num_iterations,
+                        fragment_shader=repaired_shader,
+                        output_dir=RENDERS_DIR,
+                        num_frames=num_frames,
+                    )
+                    last_good_shader = repaired_shader
+                except Exception:
+                    render_paths, shader_code, render_imgs, input_img = render_iteration_frames(
+                        input_img=input_img,
+                        iteration=i,
+                        total_iterations=num_iterations,
+                        fragment_shader=last_good_shader,
+                        output_dir=RENDERS_DIR,
+                        num_frames=num_frames,
+                    )
+
+            best_lpips, best_frame_idx, all_lpips = compute_lpips_multi(input_img, render_imgs)
+            best_render_img = render_imgs[best_frame_idx]
+            critique_text = critique_images(target_img=input_img, output_img=best_render_img)
+
+            try:
+                weave.log(
+                    {
+                        "iteration": i + 1,
+                        "lpips_score": best_lpips,
+                        "lpips_scores": all_lpips,
+                        "best_frame_index": best_frame_idx,
+                        "num_frames": num_frames,
+                        "compile_error": compile_error,
+                        "render_paths": [str(p) for p in render_paths],
+                    }
+                )
             except Exception:
-                render_path, shader_code, render_img, input_img = render_iteration(
-                    input_img=input_img,
-                    iteration=i,
-                    total_iterations=payload.iterations,
-                    fragment_shader=last_good_shader,
-                    output_dir=RENDERS_DIR,
-                )
+                pass
 
-        lpips_score = compute_lpips(input_img, render_img)
-        critique_text = critique_images(target_img=input_img, output_img=render_img)
-
-        try:
-            weave.log(
-                {
-                    "iteration": i + 1,
-                    "lpips_score": lpips_score,
-                    "compile_error": compile_error,
-                    "render_path": str(render_path),
-                }
-            )
-        except Exception:
-            pass
-
-        rank_value = lpips_score
-        rank_metric = "lpips"
-        rank_is_lower = True
-
-        iterations.append(
-            {
+            iter_data = {
                 "iteration": i + 1,
-                "lpips_score": lpips_score,
-                "render_path": f"/assets/renders/{render_path.name}",
+                "lpips_score": best_lpips,
+                "lpips_scores": all_lpips,
+                "best_frame_index": best_frame_idx,
+                "render_paths": [f"/assets/renders/{p.name}" for p in render_paths],
+                "render_path": f"/assets/renders/{render_paths[best_frame_idx].name}",
                 "shader_code": shader_code,
                 "compile_error": compile_error,
                 "critique": critique_text,
                 "agent_notes": agent_out.get("notes", ""),
             }
-        )
+            yield _sse("iteration", iter_data)
 
-        if rank_value is None:
-            should_replace = False
-        elif best["score"] is None:
-            should_replace = True
-        elif rank_is_lower and rank_value < best["score"]:
-            should_replace = True
-        elif not rank_is_lower and rank_value > best["score"]:
-            should_replace = True
-        else:
-            should_replace = False
+            rank_value = best_lpips
+            rank_metric = "lpips"
+            rank_is_lower = True
 
-        if should_replace:
-            best = {
-                "score": rank_value,
-                "render_path": f"/assets/renders/{render_path.name}",
-                "shader_code": shader_code,
-                "metric": rank_metric,
-            }
-        prev_shader = fragment_shader
-        prev_critique = critique_text
+            if rank_value is None:
+                should_replace = False
+            elif best["score"] is None:
+                should_replace = True
+            elif rank_is_lower and rank_value < best["score"]:
+                should_replace = True
+            elif not rank_is_lower and rank_value > best["score"]:
+                should_replace = True
+            else:
+                should_replace = False
 
-    return JSONResponse({"iterations": iterations, "best": best, "input_image": input_image_ref})
+            if should_replace:
+                best = {
+                    "score": rank_value,
+                    "render_path": f"/assets/renders/{render_paths[best_frame_idx].name}",
+                    "shader_code": shader_code,
+                    "metric": rank_metric,
+                }
+            prev_shader = fragment_shader
+            prev_critique = critique_text
+
+        yield _sse("best", best)
+        yield _sse("done", {})
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

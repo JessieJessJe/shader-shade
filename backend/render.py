@@ -19,14 +19,16 @@ void main() {
 }
 """
 
-def render_iteration(
+
+def render_iteration_frames(
     *,
     input_img: Image.Image,
     iteration: int,
     total_iterations: int,
     fragment_shader: str,
     output_dir: Path,
-) -> tuple[Path, str, Image.Image, Image.Image]:
+    num_frames: int = 1,
+) -> tuple[list[Path], str, list[Image.Image], Image.Image]:
     input_img = input_img.convert("RGB").resize(OUTPUT_SIZE)
     input_arr = np.asarray(input_img, dtype=np.uint8)
 
@@ -36,17 +38,7 @@ def render_iteration(
 
     program = ctx.program(vertex_shader=VERTEX_SHADER, fragment_shader=fragment_shader)
 
-    vertices = np.array(
-        [
-            -1.0,
-            -1.0,
-            3.0,
-            -1.0,
-            -1.0,
-            3.0,
-        ],
-        dtype="f4",
-    )
+    vertices = np.array([-1.0, -1.0, 3.0, -1.0, -1.0, 3.0], dtype="f4")
     vbo = ctx.buffer(vertices.tobytes())
     vao = ctx.simple_vertex_array(program, vbo, "in_pos")
 
@@ -54,21 +46,55 @@ def render_iteration(
     texture.use(location=0)
     if "u_input" in program:
         program["u_input"] = 0
-
-    if "u_time" in program:
-        program["u_time"] = float(iteration) / max(total_iterations, 1)
     if "u_resolution" in program:
         program["u_resolution"] = OUTPUT_SIZE
 
-    fbo.clear(0.0, 0.0, 0.0, 1.0)
-    vao.render(mode=moderngl.TRIANGLES)
+    render_paths = []
+    render_imgs = []
 
-    data = fbo.read(components=3)
-    render_img = Image.frombytes("RGB", OUTPUT_SIZE, data)
+    for f in range(num_frames):
+        t = f / max(num_frames, 1)
+        if "u_time" in program:
+            program["u_time"] = float(t)
 
-    render_path = output_dir / f"iter_{iteration + 1:02d}.png"
-    render_img.save(render_path)
+        fbo.clear(0.0, 0.0, 0.0, 1.0)
+        vao.render(mode=moderngl.TRIANGLES)
 
-    shader_code = fragment_shader
+        data = fbo.read(components=3)
+        render_img = Image.frombytes("RGB", OUTPUT_SIZE, data)
 
-    return render_path, shader_code, render_img, input_img
+        if num_frames == 1:
+            render_path = output_dir / f"iter_{iteration + 1:02d}.png"
+        else:
+            render_path = output_dir / f"iter_{iteration + 1:02d}_f{f + 1:02d}.png"
+        render_img.save(render_path)
+
+        render_paths.append(render_path)
+        render_imgs.append(render_img)
+
+    vao.release()
+    vbo.release()
+    texture.release()
+    fbo.release()
+    ctx.release()
+
+    return render_paths, fragment_shader, render_imgs, input_img
+
+
+def render_iteration(
+    *,
+    input_img: Image.Image,
+    iteration: int,
+    total_iterations: int,
+    fragment_shader: str,
+    output_dir: Path,
+) -> tuple[Path, str, Image.Image, Image.Image]:
+    paths, code, imgs, inp = render_iteration_frames(
+        input_img=input_img,
+        iteration=iteration,
+        total_iterations=total_iterations,
+        fragment_shader=fragment_shader,
+        output_dir=output_dir,
+        num_frames=1,
+    )
+    return paths[0], code, imgs[0], inp

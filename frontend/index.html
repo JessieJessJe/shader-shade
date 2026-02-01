@@ -25,6 +25,10 @@
             <span>Iterations</span>
             <input id="iterationsInput" type="number" min="1" max="8" value="5" />
           </label>
+          <label class="field">
+            <span>Frames</span>
+            <input id="numFramesInput" type="number" min="1" max="30" value="1" />
+          </label>
           <button id="uploadBtn">Upload</button>
           <button id="runBtn">Run Iterations</button>
         </div>
@@ -33,11 +37,6 @@
           <div id="progressBar" class="progress-bar"></div>
         </div>
         <div id="runStatus" class="status"></div>
-      </section>
-
-      <section class="card">
-        <h2>Iterations</h2>
-        <div id="iterations" class="grid"></div>
       </section>
 
       <section class="card">
@@ -53,8 +52,18 @@
       </section>
 
       <section class="card">
-        <h2>Discovery Notes</h2>
+        <h2>Discovery</h2>
         <div id="discoveryNotes" class="notes"></div>
+      </section>
+
+      <section class="card">
+        <h2>Iterations</h2>
+        <div id="iterations" class="grid"></div>
+      </section>
+
+      <section class="card">
+        <h2>Agent Notes</h2>
+        <div id="agentNotes" class="notes"></div>
       </section>
 
       <section class="card">
@@ -68,17 +77,6 @@
       <div class="modal-content">
         <button id="modalClose" class="modal-close" type="button">Close</button>
         <h3 id="modalTitle"></h3>
-        <div id="modalSplit" class="modal-split hidden">
-          <div class="modal-pane">
-            <div class="modal-pane-title">GLSL</div>
-            <pre id="modalCode"></pre>
-          </div>
-          <div class="modal-pane">
-            <div class="modal-pane-title">Live Preview</div>
-            <canvas id="modalCanvas" width="320" height="320"></canvas>
-            <div id="modalError" class="muted"></div>
-          </div>
-        </div>
         <pre id="modalBody"></pre>
       </div>
     </div>

@@ -1,0 +1,99 @@
+# GLSL Shader Development Guidelines
+
+## Critical: Prevent Type Mismatch Errors
+
+### Vector Constructor Rules
+
+GLSL constructors require **exact component counts**. Mismatches cause silent failures that cascade into "undeclared identifier" errors.
+```glsl
+// ❌ WRONG — 4 components into vec3
+vec3 b0 = vec3(x.xy, y.xy);  // vec2 + vec2 = 4 floats
+
+// ✅ CORRECT — 3 components into vec3
+vec3 b0 = vec3(x.xy, y.z);   // vec2 + float = 3 floats
+
+// ✅ CORRECT — 4 components into vec4
+vec4 b0 = vec4(x.xy, y.xy);  // vec2 + vec2 = 4 floats
+```
+
+### Matrix Multiplication Rules
+
+GLSL matrix multiplication is **order-dependent**. The matrix must be on the LEFT.
+```glsl
+// ❌ WRONG — vec * mat is invalid
+vec2 s = vec2(x.x, x.y) * m;  // ERROR: '*' does not operate on 'vec2' and 'mat2'
+
+// ✅ CORRECT — mat * vec is valid
+vec2 s = m * vec2(x.x, x.y);  // mat2 * vec2 → vec2
+```
+
+| Operation | Result | Valid? |
+|-----------|--------|--------|
+| `mat2 * vec2` | vec2 | ✅ Yes |
+| `mat3 * vec3` | vec3 | ✅ Yes |
+| `mat4 * vec4` | vec4 | ✅ Yes |
+| `vec2 * mat2` | — | ❌ No |
+| `vec3 * mat3` | — | ❌ No |
+| `vec4 * mat4` | — | ❌ No |
+
+**Safer alternative:** Use dot products instead of matrix multiplication for hash functions:
+```glsl
+// ✅ RECOMMENDED — avoids matrix entirely
+vec2 hash2_3(in vec3 x) {
+    return fract(sin(vec2(
+        dot(x, vec3(20.5283, 24.1994, 70.2913)),
+        dot(x, vec3(89.9132, 57.1454, 45.1211))
+    )) * 492.194);
+}
+```
+
+### Component Count Reference
+
+| Type | Components | Valid Constructors |
+|------|------------|-------------------|
+| `vec2` | 2 | `vec2(float, float)` or `vec2(vec2)` |
+| `vec3` | 3 | `vec3(float, float, float)` or `vec3(vec2, float)` or `vec3(float, vec2)` |
+| `vec4` | 4 | `vec4(vec2, vec2)` or `vec4(vec3, float)` or `vec4(float, vec3)` |
+
+### Before Using Copied Shader Code
+
+1. **Verify it compiles** — Test the code in isolation before integrating
+2. **Trace to original source** — Find the authoritative version (e.g., Ashima GitHub for simplex noise)
+3. **Check all constructors** — Count components in every `vec2/vec3/vec4/mat` constructor
+4. **Check matrix operations** — Ensure matrix is always on the LEFT side of multiplication
+5. **Prefer simple patterns** — Dot-product hash functions are safer than matrix-based ones
+
+### Safe Noise Pattern (Recommended Starter)
+```glsl
+float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+```
+
+### Debugging Cascading Errors
+
+When you see errors like:
+```
+ERROR: 0:78: Incompatible types in initialization
+ERROR: 0:79: Use of undeclared identifier 'm'
+ERROR: 0:80: Use of undeclared identifier 'm'
+```
+
+**The root cause is always the FIRST error.** Fix line 78; the rest will resolve.
+
+### Trusted Noise Sources
+
+- Hash-based: Shadertoy reference patterns
+- Simplex: github.com/ashima/webgl-noise (use unmodified)
+- Collection: github.com/patriciogonzalezvivo/lygia

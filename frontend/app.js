@@ -8,19 +8,18 @@ const iterationsEl = document.getElementById("iterations");
 const bestEl = document.getElementById("best");
 const originalImage = document.getElementById("originalImage");
 const discoveryNotesEl = document.getElementById("discoveryNotes");
+const agentNotesEl = document.getElementById("agentNotes");
+const numFramesInput = document.getElementById("numFramesInput");
 const referenceShaderInput = document.getElementById("referenceShaderInput");
 const progressBar = document.getElementById("progressBar");
 const modal = document.getElementById("modal");
 const modalTitle = document.getElementById("modalTitle");
 const modalBody = document.getElementById("modalBody");
 const modalClose = document.getElementById("modalClose");
-const modalSplit = document.getElementById("modalSplit");
-const modalCode = document.getElementById("modalCode");
-const modalCanvas = document.getElementById("modalCanvas");
-const modalError = document.getElementById("modalError");
 
 let imageId = null;
 let currentShader = null;
+let activeIntervals = [];
 originalImage.src = "/assets/uploads/test1.png";
 uploadStatus.textContent = "Using default image: /assets/uploads/test1.png";
 
@@ -45,149 +44,15 @@ if (referenceShaderInput) {
   });
 }
 
-let previewState = null;
-
-const stopPreview = () => {
-  if (previewState?.rafId) {
-    cancelAnimationFrame(previewState.rafId);
-  }
-  if (previewState?.gl) {
-    previewState.gl.getExtension("WEBGL_lose_context")?.loseContext();
-  }
-  previewState = null;
-  if (modalError) modalError.textContent = "";
-};
-
-const toWebGLFragment = (shader) => {
-  let code = shader.replace(/#version\\s+330\\s*/g, "");
-  code = code.replace(/\\bout\\s+vec4\\s+f_color\\s*;/g, "out vec4 outColor;");
-  code = code.replace(/\\bf_color\\b/g, "outColor");
-  return `#version 300 es\\nprecision highp float;\\n${code}`;
-};
-
-const compileShader = (gl, type, source) => {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const info = gl.getShaderInfoLog(shader);
-    gl.deleteShader(shader);
-    return { shader: null, error: info || "Shader compile failed." };
-  }
-  return { shader, error: "" };
-};
-
-const buildProgram = (gl, fragmentSource) => {
-  const vertexSource = `#version 300 es\nin vec2 in_pos;\nout vec2 v_uv;\nvoid main(){\n  v_uv = in_pos * 0.5 + 0.5;\n  gl_Position = vec4(in_pos, 0.0, 1.0);\n}\n`;
-  const vs = compileShader(gl, gl.VERTEX_SHADER, vertexSource);
-  if (vs.error) return { program: null, error: vs.error };
-  const fs = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
-  if (fs.error) return { program: null, error: fs.error };
-  const program = gl.createProgram();
-  gl.attachShader(program, vs.shader);
-  gl.attachShader(program, fs.shader);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const info = gl.getProgramInfoLog(program);
-    gl.deleteProgram(program);
-    return { program: null, error: info || "Program link failed." };
-  }
-  return { program, error: "" };
-};
-
-const createTexture = (gl, image) => {
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGB,
-    gl.RGB,
-    gl.UNSIGNED_BYTE,
-    image
-  );
-  return tex;
-};
-
-const startPreview = (shaderSource) => {
-  if (!modalCanvas) return;
-  stopPreview();
-  const gl = modalCanvas.getContext("webgl2");
-  if (!gl) {
-    if (modalError) modalError.textContent = "WebGL2 not available.";
-    return;
-  }
-  const fragmentSource = toWebGLFragment(shaderSource);
-  const programInfo = buildProgram(gl, fragmentSource);
-  if (!programInfo.program) {
-    if (modalError) modalError.textContent = programInfo.error;
-    return;
-  }
-  const program = programInfo.program;
-  gl.useProgram(program);
-
-  const vertices = new Float32Array([-1, -1, 3, -1, -1, 3]);
-  const vbo = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
-  const loc = gl.getAttribLocation(program, "in_pos");
-  gl.enableVertexAttribArray(loc);
-  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-
-  const resolutionLoc = gl.getUniformLocation(program, "u_resolution");
-  const timeLoc = gl.getUniformLocation(program, "u_time");
-  const inputLoc = gl.getUniformLocation(program, "u_input");
-
-  const image = new Image();
-  image.crossOrigin = "anonymous";
-  image.src = originalImage?.src || "/assets/uploads/test1.png";
-  image.onload = () => {
-    const tex = createTexture(gl, image);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, tex);
-    if (inputLoc) gl.uniform1i(inputLoc, 0);
-  };
-
-  const start = performance.now();
-  const render = () => {
-    const now = performance.now();
-    const t = (now - start) / 1000;
-    gl.viewport(0, 0, modalCanvas.width, modalCanvas.height);
-    if (resolutionLoc) gl.uniform2f(resolutionLoc, modalCanvas.width, modalCanvas.height);
-    if (timeLoc) gl.uniform1f(timeLoc, t);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    previewState.rafId = requestAnimationFrame(render);
-  };
-
-  previewState = { gl, program, rafId: null };
-  render();
-};
-
 const openModal = (title, body) => {
   if (!modal || !modalTitle || !modalBody) return;
   modalTitle.textContent = title;
-  if (title.toLowerCase().includes("glsl")) {
-    if (modalSplit) modalSplit.classList.remove("hidden");
-    if (modalBody) modalBody.classList.add("hidden");
-    if (modalCode) modalCode.textContent = body;
-    if (modalError) modalError.textContent = "";
-    startPreview(body);
-  } else {
-    if (modalSplit) modalSplit.classList.add("hidden");
-    if (modalBody) modalBody.classList.remove("hidden");
-    modalBody.textContent = body;
-    stopPreview();
-  }
+  modalBody.textContent = body;
   modal.classList.remove("hidden");
 };
 
 const closeModal = () => {
   if (!modal) return;
-  stopPreview();
   modal.classList.add("hidden");
 };
 
@@ -226,10 +91,65 @@ uploadBtn.addEventListener("click", async () => {
   uploadStatus.textContent = "Uploaded to memory. Ready to run.";
 });
 
+const addIterationCard = (iter) => {
+  const lpips = iter.lpips_score;
+  currentShader = iter.shader_code;
+  const card = document.createElement("div");
+  card.className = "iter-card";
+  const compileStatus = iter.compile_error ? "compile error" : "compiled";
+  const notesId = `notes-${iter.iteration}`;
+  const critiqueId = `critique-${iter.iteration}`;
+  const glslId = `glsl-${iter.iteration}`;
+
+  const framePaths = iter.render_paths || [iter.render_path];
+  let lpipsDisplay = lpips == null ? "n/a" : lpips.toFixed(4);
+  if (framePaths.length > 1) {
+    lpipsDisplay += ` (best of ${framePaths.length})`;
+  }
+
+  card.innerHTML = `
+    <div>Iteration ${iter.iteration}</div>
+    <div class="muted">LPIPS: ${lpipsDisplay}</div>
+    <div class="muted">Status: ${compileStatus}</div>
+    ${iter.compile_error ? `<div class="muted">Error: ${iter.compile_error}</div>` : ""}
+    <div class="frame-viewer">
+      <img class="frame-img" src="${framePaths[0]}" alt="iteration ${iter.iteration}" />
+      ${framePaths.length > 1 ? `<div class="frame-counter muted">Frame 1 / ${framePaths.length}</div>` : ""}
+    </div>
+    ${iter.agent_notes ? `<button class="modal-trigger" data-title="Agent Notes" data-body="${notesId}">Agent Notes</button>` : ""}
+    ${iter.critique ? `<button class="modal-trigger" data-title="Critique" data-body="${critiqueId}">Critique</button>` : ""}
+    <button class="modal-trigger" data-title="GLSL" data-body="${glslId}">GLSL</button>
+  `;
+  const store = document.createElement("div");
+  store.className = "hidden";
+  store.innerHTML = `
+    <pre id="${notesId}">${iter.agent_notes || ""}</pre>
+    <pre id="${critiqueId}">${iter.critique || ""}</pre>
+    <pre id="${glslId}">${iter.shader_code || ""}</pre>
+  `;
+  card.appendChild(store);
+  iterationsEl.appendChild(card);
+
+  if (framePaths.length > 1) {
+    const imgEl = card.querySelector(".frame-img");
+    const counterEl = card.querySelector(".frame-counter");
+    let currentFrame = 0;
+    const intervalId = setInterval(() => {
+      currentFrame = (currentFrame + 1) % framePaths.length;
+      imgEl.src = framePaths[currentFrame];
+      if (counterEl) counterEl.textContent = `Frame ${currentFrame + 1} / ${framePaths.length}`;
+    }, 250);
+    activeIntervals.push(intervalId);
+  }
+};
+
 runBtn.addEventListener("click", async () => {
+  activeIntervals.forEach(id => clearInterval(id));
+  activeIntervals = [];
   iterationsEl.innerHTML = "";
   bestEl.innerHTML = "";
   discoveryNotesEl.innerHTML = "";
+  agentNotesEl.innerHTML = "";
   runStatus.textContent = "Starting run...";
   runStatus.classList.add("running");
   if (progressBar) {
@@ -241,21 +161,22 @@ runBtn.addEventListener("click", async () => {
     1,
     Math.min(8, Number(iterationsInput?.value || 5))
   );
+  const numFramesValue = Math.max(1, Math.min(30, Number(numFramesInput?.value || 1)));
   const payload = {
     image_id: imageId,
     iterations: iterationsValue,
+    num_frames: numFramesValue,
     reference_text: referenceShaderInput?.value || null,
   };
 
-  let data = null;
+  let res;
   try {
-    runStatus.textContent = `Running ${payload.iterations} iterations...`;
-    const res = await fetch("/api/run", {
+    runStatus.textContent = "Running discovery...";
+    res = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    data = await res.json();
   } catch (err) {
     runStatus.textContent = `Run failed: ${err}`;
     runStatus.classList.remove("running");
@@ -266,66 +187,83 @@ runBtn.addEventListener("click", async () => {
     return;
   }
 
-  if (data.input_image) {
-    originalImage.src = data.input_image;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let iterCount = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop();
+
+    for (const part of parts) {
+      if (!part.trim()) continue;
+      let eventType = "";
+      let dataStr = "";
+      for (const line of part.split("\n")) {
+        if (line.startsWith("event: ")) eventType = line.slice(7);
+        else if (line.startsWith("data: ")) dataStr = line.slice(6);
+      }
+      if (!eventType || !dataStr) continue;
+
+      let data;
+      try { data = JSON.parse(dataStr); } catch { continue; }
+
+      if (eventType === "input_image") {
+        if (data.input_image) originalImage.src = data.input_image;
+      } else if (eventType === "discovery") {
+        runStatus.textContent = `Running iteration 1 of ${iterationsValue}...`;
+        if (progressBar) progressBar.style.width = `${Math.round(100 / (iterationsValue + 1))}%`;
+        if (data.gap_analysis) {
+          const block = document.createElement("div");
+          block.className = "note-item";
+          block.innerHTML = `
+            <div class="note-title">Discovery: Gap Analysis</div>
+            <pre>${data.gap_analysis}</pre>
+            ${data.notes ? `<div class="muted" style="margin-top:0.5em">${data.notes}</div>` : ""}
+          `;
+          discoveryNotesEl.appendChild(block);
+        }
+      } else if (eventType === "iteration") {
+        iterCount++;
+        runStatus.textContent = iterCount < iterationsValue
+          ? `Running iteration ${iterCount + 1} of ${iterationsValue}...`
+          : "Finishing up...";
+        if (progressBar) progressBar.style.width = `${Math.round(((iterCount + 1) / (iterationsValue + 1)) * 100)}%`;
+        addIterationCard(data);
+        const noteItem = document.createElement("div");
+        noteItem.className = "note-item";
+        noteItem.innerHTML = `
+          <div class="note-title">Iteration ${data.iteration}</div>
+          <pre>${data.agent_notes || "No notes."}</pre>
+        `;
+        agentNotesEl.appendChild(noteItem);
+      } else if (eventType === "best") {
+        if (data.render_path) {
+          bestEl.innerHTML = `
+            <div>Best ${data.metric || "lpips"}: ${data.score != null ? data.score.toFixed(4) : "n/a"}</div>
+            <img src="${data.render_path}" alt="best output" />
+            <button class="modal-trigger" data-title="Best GLSL" data-body="best-glsl">GLSL</button>
+            <div class="hidden"><pre id="best-glsl">${data.shader_code}</pre></div>
+          `;
+          currentShader = data.shader_code;
+        }
+      } else if (eventType === "done") {
+        runStatus.textContent = "Run complete.";
+        runStatus.classList.remove("running");
+        if (progressBar) {
+          progressBar.classList.remove("running");
+          progressBar.style.width = "100%";
+        }
+      }
+    }
   }
 
-  data.iterations.forEach((iter) => {
-    const lpips = iter.lpips_score;
-    currentShader = iter.shader_code;
-    const card = document.createElement("div");
-    card.className = "iter-card";
-    const compileStatus = iter.compile_error ? "compile error" : "compiled";
-    const notesId = `notes-${iter.iteration}`;
-    const critiqueId = `critique-${iter.iteration}`;
-    const glslId = `glsl-${iter.iteration}`;
-    card.innerHTML = `
-      <div>Iteration ${iter.iteration}</div>
-      <div class="muted">LPIPS: ${lpips == null ? "n/a" : lpips.toFixed(4)}</div>
-      <div class="muted">Status: ${compileStatus}</div>
-      ${iter.compile_error ? `<div class="muted">Error: ${iter.compile_error}</div>` : ""}
-      <img src="${iter.render_path}" alt="iteration ${iter.iteration}" />
-      ${iter.agent_notes ? `<button class="modal-trigger" data-title="Agent Notes" data-body="${notesId}">Agent Notes</button>` : ""}
-      ${iter.critique ? `<button class="modal-trigger" data-title="Critique" data-body="${critiqueId}">Critique</button>` : ""}
-      <button class="modal-trigger" data-title="GLSL" data-body="${glslId}">GLSL</button>
-    `;
-    const store = document.createElement("div");
-    store.className = "hidden";
-    store.innerHTML = `
-      <pre id="${notesId}">${iter.agent_notes || ""}</pre>
-      <pre id="${critiqueId}">${iter.critique || ""}</pre>
-      <pre id="${glslId}">${iter.shader_code || ""}</pre>
-    `;
-    card.appendChild(store);
-    iterationsEl.appendChild(card);
-  });
-
-  if (data.best?.render_path) {
-    bestEl.innerHTML = `
-      <div>Best ${data.best.metric || "lpips"}: ${data.best.score.toFixed(4)}</div>
-      <img src="${data.best.render_path}" alt="best output" />
-      <button class="modal-trigger" data-title="Best GLSL" data-body="best-glsl">GLSL</button>
-      <div class="hidden"><pre id="best-glsl">${data.best.shader_code}</pre></div>
-    `;
-    currentShader = data.best.shader_code;
-  }
-
-  if (data.iterations?.length) {
-    const notesList = document.createElement("div");
-    notesList.className = "notes-list";
-    data.iterations.forEach((iter) => {
-      const item = document.createElement("div");
-      item.className = "note-item";
-      const noteText = iter.agent_notes || "No notes.";
-      item.innerHTML = `
-        <div class="note-title">Iteration ${iter.iteration}</div>
-        <pre>${noteText}</pre>
-      `;
-      notesList.appendChild(item);
-    });
-    discoveryNotesEl.appendChild(notesList);
-  }
-
+  // Ensure we mark complete even if done event was missed
   runStatus.textContent = "Run complete.";
   runStatus.classList.remove("running");
   if (progressBar) {

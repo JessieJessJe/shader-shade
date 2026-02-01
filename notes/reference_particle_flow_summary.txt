@@ -1,21 +1,449 @@
-Particle Flow Reference (Prompt-Only Summary)
+Shadertoy Reference Document
 
-Core effect:
-- Dense 2D field of soft particles that flow organically.
+Particle Flow System
 
-Key techniques:
-- Grid-based particle placement (one per cell).
-- Noise-driven displacement (smooth, organic motion).
-- Neighbor cell sampling for overlap.
-- Soft dot rendering with smoothstep falloff.
-- Optional glow via single-pass falloff (no multipass).
+Source: shadertoy.com/view/ttB3Rt | Author: Jan Mróz (jaszunio15) | License: CC BY 3.0
 
-Constraints:
-- Single-pass fragment shader only.
-- No Shadertoy buffers; use #version 330 and required uniforms.
+Reference Overview
+A 2D particle system where thousands of soft dots flow organically across the screen, driven by 3D noise. Includes multi-pass blur for glow effect. Key value: demonstrates grid-based particle placement with noise-driven movement.
 
-Parameters to expose:
-- Grid scale / density
-- Particle radius / falloff
-- Noise frequency / displacement strength
-- Brightness / contrast
+
+
+1. Shader Architecture
+
+This shader uses a multi-buffer architecture for progressive rendering:
+
+Buffer
+Purpose
+Common
+Shared utilities: hash functions, noise functions, blur function
+Buffer A
+Main particle system — computes all particle positions and renders them
+Buffer B
+First blur pass — smooths Buffer A output
+Buffer C
+Second blur pass — further smoothing
+Buffer D
+Third blur pass — creates soft glow effect
+Image
+Final output — displays the blurred result
+
+
+
+2. Core Techniques
+
+
+2.1 Hash Functions (Pseudo-random)
+
+Fast, deterministic random number generation from coordinates. Essential for procedural content.
+
+TECHNIQUE: 1D Hash from 2D Input
+
+Returns a single random value [0,1] from a 2D coordinate. Used for particle size variation.
+
+float hash1_2(in vec2 x) {
+
+    return fract(sin(dot(x, vec2(52.127, 61.2871))) * 521.582);
+
+}
+
+TECHNIQUE: 2D Hash from 3D Input
+
+Returns 2D random values from 3D coordinate. Used for particle displacement.
+
+vec2 hash2_3(in vec3 x) {
+
+    return fract(sin(x * mat2x3(20.5283, 24.1994, 70.2913,
+
+                                89.9132, 57.1454, 45.1211)) * 492.194);
+
+}
+
+
+
+2.2 Interpolated Noise
+
+Smooth noise by interpolating between random values at grid points. Creates organic, continuous variation.
+
+TECHNIQUE: 3D Noise returning 2D values
+
+Trilinear interpolation of hash values. The Z dimension allows animation over time.
+
+vec2 noise2_3(vec3 coord) {
+
+    vec3 f = smoothstep(0.0, 1.0, fract(coord));
+
+    vec3 uv000 = floor(coord);
+
+    // ... sample 8 corners of the cube ...
+
+    // ... trilinear interpolation ...
+
+    return v;
+
+}
+
+
+
+2.3 Grid-Based Particle System
+
+The core innovation: divide UV space into cells, place one particle per cell, let it move within/across cells.
+
+TECHNIQUE: Cell Division
+
+Floor operation divides continuous UV into discrete cells. Each cell owns one particle.
+
+vec2 rootUV = floor(uv);
+
+// rootUV identifies which cell we&apos;re in
+
+// Each cell will contribute one particle
+
+TECHNIQUE: Particle Movement
+
+Noise displaces each particle from its cell center. Creates organic flow.
+
+vec2 cellPointFromRootUV(vec2 rootUV, vec2 originalUV, out float len) {
+
+    vec2 displacement = noise2_3(vec3(
+
+        rootUV * 0.07 + iTime * 0.3,
+
+        0.5 * (iTime + 0.1) + noise1_2(originalUV * 0.04)
+
+    )) - 0.5;
+
+    len = dot(displacement, displacement);
+
+    return displacement * 3.0 * PARTICLE_ITERATIONS + 0.5 + rootUV;
+
+}
+
+TECHNIQUE: Neighbor Iteration
+
+Check surrounding cells — particles can move across cell boundaries.
+
+for (float x = -PARTICLE_ITERATIONS; x <= PARTICLE_ITERATIONS; x += 1.0) {
+
+    for (float y = -PARTICLE_ITERATIONS; y <= PARTICLE_ITERATIONS; y += 1.0) {
+
+        tempRootUV = rootUV + vec2(x, y);
+
+        pointUV = cellPointFromRootUV(tempRootUV, uv, dist);
+
+        particles += particleFromUVAndPoint(uv, pointUV, ...);
+
+    }
+
+}
+
+
+
+2.4 Soft Particle Rendering
+
+Each particle is a soft dot with smooth falloff, not a hard circle.
+
+TECHNIQUE: Distance-based Falloff
+
+Smoothstep creates soft edges. Squaring the result sharpens the core.
+
+float particleFromUVAndPoint(vec2 uv, vec2 point, ...) {
+
+    float dist = distance(uv, point);
+
+    float particle = 1.0 - smoothstep(
+
+        PARTICLE_RADIUS - dist * 0.05,
+
+        PARTICLE_RADIUS2 - dist * 0.05 + pixelSize,
+
+        dist
+
+    );
+
+    return particle * particle;  // Sharpen
+
+}
+
+
+
+2.5 Multi-Pass Blur
+
+Sequential blur passes create soft glow around bright particles.
+
+TECHNIQUE: Distance-weighted Blur
+
+Blur strength increases toward edges (vignette-aware). 3x3 kernel sampling.
+
+vec4 blur(sampler2D sampler, vec2 fragCoord, vec2 resolution) {
+
+    vec2 uv = fragCoord / resolution;
+
+    float blurStrength = pow(distance(uv, vec2(0.5)), BLUR_RANGE);
+
+    vec4 sum = vec4(0.0);
+
+    for (float x = -1.0; x <= 1.0; x += 1.0)
+
+        for (float y = -1.0; y <= 1.0; y += 1.0)
+
+            sum += texture(sampler, uv + vec2(x,y) * pixelSize * blurStrength);
+
+    return sum / 9.0;
+
+}
+
+
+
+
+3. Key Parameters
+Parameter
+Value
+Effect
+PARTICLE_ITERATIONS
+6.0
+Search radius for particles (higher = more overlap)
+PARTICLE_RADIUS
+0.15
+Inner radius of particle (solid core)
+PARTICLE_RADIUS2
+0.3
+Outer radius (falloff edge)
+PARTICLE_SIZE_VARIATION
+0.2
+Random size variation per particle
+PARTICLE_COLOR
+vec3(0.3, 0.9, 0.9)
+Cyan-ish particle color
+BRIGHTNESS
+0.45
+Overall brightness multiplier
+BLUR_STRENGTH
+1.0
+Blur intensity
+BLUR_RANGE
+2.5
+Blur falloff from center
+uv *= 70.0
+70.0
+Zoom level (higher = more particles visible)
+
+
+
+4. Adaptation Notes
+
+
+4.1 What This Reference Provides
+
+
+Grid-based particle placement system
+
+
+Noise-driven organic movement
+
+
+Soft particle rendering with smooth falloff
+
+
+Hash functions for deterministic randomness
+
+
+Multi-pass blur for glow effects
+
+
+
+4.2 What This Reference Does NOT Provide
+
+
+3D surface/geometry — this is a flat 2D field
+
+
+Edge/silhouette detection — no surface normals
+
+
+Depth variation — all particles at same &quot;depth&quot;
+
+
+View-dependent effects — no camera/perspective
+
+
+
+4.3 Techniques to Borrow
+
+
+The particle rendering approach (soft dots with smoothstep)
+
+
+The grid + iteration pattern for distributing many particles
+
+
+Noise functions for organic variation
+
+
+The brightness/color mixing approach
+
+
+
+4.4 Techniques to Add for 3D Surfaces
+
+
+Parametric surface function (e.g., sin waves for ribbon shape)
+
+
+Surface normal calculation (for edge highlighting)
+
+
+UV mapping particles onto the 3D surface
+
+
+Fresnel or normal-based brightness (edges glow brighter)
+
+
+
+5. Full Code Reference
+
+
+5.1 Common (Shared Utilities)
+
+// Shader License: CC BY 3.0
+
+// Author: Jan Mróz (jaszunio15)
+
+
+
+#define FREQ_STEP (0.001953125 * 3.0)
+
+#define PI 3.1415927
+
+#define TWO_PI 6.283185
+
+#define BLUR_STRENGTH 1.0
+
+#define BLUR_RANGE 2.5
+
+
+
+float pow3(in float x) { return x*x*x; }
+
+
+
+float hash1_2(in vec2 x) {
+
+    return fract(sin(dot(x, vec2(52.127, 61.2871))) * 521.582);
+
+}
+
+
+
+vec2 hash2_3(in vec3 x) {
+
+    return fract(sin(x * mat2x3(20.5283, 24.1994, 70.2913,
+
+                                89.9132, 57.1454, 45.1211)) * 492.194);
+
+}
+
+
+
+// ... noise2_3, noise1_2, blur functions ...
+
+
+
+5.2 Buffer A (Main Particle System)
+
+#define PARTICLE_ITERATIONS 6.0
+
+#define PARTICLE_RADIUS 0.15
+
+#define PARTICLE_RADIUS2 0.3
+
+#define PARTICLE_SIZE_VARIATION 0.2
+
+#define PARTICLE_COLOR vec3(0.3, 0.9, 0.9)
+
+#define BRIGHTNESS 0.45
+
+
+
+vec2 cellPointFromRootUV(vec2 rootUV, vec2 originalUV, out float len) {
+
+    vec2 displacement = (noise2_3(vec3(
+
+        rootUV * 0.07 + iTime * 0.3,
+
+        0.5 * (iTime + 0.1) + noise1_2(originalUV * 0.04)
+
+    )) - 0.5);
+
+    len = dot(displacement, displacement);
+
+    return displacement * 3.0 * PARTICLE_ITERATIONS + 0.5 + rootUV;
+
+}
+
+
+
+float particleFromUVAndPoint(vec2 uv, vec2 point, vec2 rootUV, float pixelSize) {
+
+    float dist = distance(uv, point);
+
+    dist += (hash1_2(rootUV * 10.0) - 0.5) * PARTICLE_SIZE_VARIATION;
+
+    float particle = 1.0 - smoothstep(
+
+        PARTICLE_RADIUS - dist * 0.05,
+
+        PARTICLE_RADIUS2 - dist * 0.05 + pixelSize,
+
+        dist);
+
+    return particle * particle;
+
+}
+
+
+
+vec3 surfaceParticles(vec2 uv, float pixelSize) {
+
+    vec3 particles = vec3(0.0);
+
+    vec2 rootUV = floor(uv);
+
+    for (float x = -PARTICLE_ITERATIONS; x <= PARTICLE_ITERATIONS; x += 1.0) {
+
+        for (float y = -PARTICLE_ITERATIONS; y <= PARTICLE_ITERATIONS; y += 1.0) {
+
+            // ... particle accumulation ...
+
+        }
+
+    }
+
+    return particles;
+
+}
+
+
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+
+    vec2 uv = (2.0 * fragCoord - iResolution.xy) / iResolution.x;
+
+    float vignette = 1.0 - smoothstep(0.5, 1.3, length(uv));
+
+    float pixelSize = 1.5 / iResolution.x;
+
+    uv *= 70.0;
+
+    pixelSize *= 70.0;
+
+    vec3 particles = surfaceParticles(uv, pixelSize) * BRIGHTNESS;
+
+    particles = smoothstep(-0.2, 0.8, particles * vignette);
+
+    fragColor = vec4(particles, 1.0);
+
+}
+
+
+— End of Reference Document —
