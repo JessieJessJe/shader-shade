@@ -67,7 +67,7 @@ def health() -> JSONResponse:
 
 class RunRequest(BaseModel):
     image_id: str | None = Field(None, description="Upload id returned by /api/upload")
-    iterations: int = Field(12, ge=1, le=20)
+    iterations: int = Field(8, ge=1, le=20)
     num_frames: int = Field(1, ge=1, le=30, description="Frames to render per iteration")
     reference_text: str | None = Field(
         None, description="Optional reference text overriding the default summary"

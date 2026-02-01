@@ -157,7 +157,7 @@ runBtn.addEventListener("click", async () => {
 
   const iterationsValue = Math.max(
     1,
-    Math.min(20, Number(iterationsInput?.value || 12))
+    Math.min(20, Number(iterationsInput?.value || 8))
   );
   const numFramesValue = Math.max(1, Math.min(30, Number(numFramesInput?.value || 1)));
   const payload = {
