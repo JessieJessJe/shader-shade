@@ -5,3 +5,4 @@ __pycache__/
 assets/uploads/
 assets/renders/
 .DS_Store
+*.docx
