@@ -61,8 +61,27 @@
         <h2>Best Output</h2>
         <div id="best"></div>
       </section>
+
     </main>
 
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-content">
+        <button id="modalClose" class="modal-close" type="button">Close</button>
+        <h3 id="modalTitle"></h3>
+        <div id="modalSplit" class="modal-split hidden">
+          <div class="modal-pane">
+            <div class="modal-pane-title">GLSL</div>
+            <pre id="modalCode"></pre>
+          </div>
+          <div class="modal-pane">
+            <div class="modal-pane-title">Live Preview</div>
+            <canvas id="modalCanvas" width="320" height="320"></canvas>
+            <div id="modalError" class="muted"></div>
+          </div>
+        </div>
+        <pre id="modalBody"></pre>
+      </div>
+    </div>
     <script src="/static/app.js"></script>
   </body>
 </html>

@@ -25,6 +25,7 @@ from backend.agent import (
 from backend.metrics import compute_lpips
 from backend.render import render_iteration
 from backend.vision import critique_images
+import weave
 
 ASSETS_DIR = BASE_DIR / "assets"
 UPLOADS_DIR = ASSETS_DIR / "uploads"
@@ -157,6 +158,18 @@ async def run_loop(payload: RunRequest) -> JSONResponse:
 
         lpips_score = compute_lpips(input_img, render_img)
         critique_text = critique_images(target_img=input_img, output_img=render_img)
+
+        try:
+            weave.log(
+                {
+                    "iteration": i + 1,
+                    "lpips_score": lpips_score,
+                    "compile_error": compile_error,
+                    "render_path": str(render_path),
+                }
+            )
+        except Exception:
+            pass
 
         rank_value = lpips_score
         rank_metric = "lpips"
