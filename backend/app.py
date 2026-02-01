@@ -67,7 +67,7 @@ def health() -> JSONResponse:
 
 class RunRequest(BaseModel):
     image_id: str | None = Field(None, description="Upload id returned by /api/upload")
-    iterations: int = Field(5, ge=1, le=8)
+    iterations: int = Field(12, ge=1, le=20)
     num_frames: int = Field(1, ge=1, le=30, description="Frames to render per iteration")
     reference_text: str | None = Field(
         None, description="Optional reference text overriding the default summary"
@@ -124,7 +124,7 @@ async def run_loop(payload: RunRequest):
         yield _sse("input_image", {"input_image": input_image_ref})
 
         # --- Phase A: Discovery ---
-        discovery = run_discovery(reference_text=ref_text)
+        discovery = run_discovery(reference_text=ref_text, target_img=input_img)
         discovery_initial = discovery.get("initial_prompt", "")
         discovery_edit = discovery.get("edit_prompt", "")
 

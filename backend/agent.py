@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
+from io import BytesIO
 from pathlib import Path
 from typing import Dict, Optional
 
 import weave
 from openai import OpenAI
+from PIL import Image
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 REFERENCE_SUMMARY_PATH = BASE_DIR / "notes" / "reference_particle_flow_summary.txt"
@@ -82,6 +85,13 @@ def _load_glsl_rules() -> str:
     return ""
 
 
+def _image_to_data_url(img: Image.Image) -> str:
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{b64}"
+
+
 def _call_json_model(*, client: OpenAI, model: str, messages: list[dict]) -> Dict[str, object]:
     response = client.chat.completions.create(
         model=model,
@@ -146,8 +156,8 @@ def generate_shader(
 
 
 @weave.op()
-def run_discovery(*, reference_text: str | None) -> Dict[str, object]:
-    """Phase A: read the full reference text, produce gap analysis + tailored prompts."""
+def run_discovery(*, reference_text: str | None, target_img: Image.Image | None = None) -> Dict[str, object]:
+    """Phase A: read the reference text + look at the target image, produce gap analysis + tailored prompts."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return {"gap_analysis": "", "initial_prompt": "", "edit_prompt": "", "notes": "OPENAI_API_KEY not set"}
@@ -157,18 +167,28 @@ def run_discovery(*, reference_text: str | None) -> Dict[str, object]:
         return {"gap_analysis": "", "initial_prompt": "", "edit_prompt": "", "notes": "No reference text provided"}
 
     client = OpenAI(api_key=api_key)
-    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+    image_context = (
+        "\nYou are also given a TARGET IMAGE — this is the visual goal the shader must reproduce.\n"
+        "Ground your analysis against what you see in the target:\n"
+        "- SIMILAR should list reference techniques that will help recreate what you see in the target.\n"
+        "- DIFFERENT should list reference techniques that don't match the target's appearance.\n"
+        "- BRIDGE NEEDED should describe adaptations needed to go from the reference toward the target.\n"
+        if target_img is not None
+        else ""
+    )
 
     prompt = (
         "You are a shader analysis assistant. Return JSON only.\n\n"
         "I will give you a REFERENCE SHADER / TECHNIQUE description. "
-        "Read it carefully and completely.\n\n"
+        "Read it carefully and completely.\n"
+        f"{image_context}\n"
         "Your job:\n"
         "1. UNDERSTAND what visual effect the reference produces.\n"
-        "2. Classify the techniques into three buckets:\n"
-        "   - SIMILAR: techniques we can reuse directly (e.g. particle rendering, noise, soft dots)\n"
-        "   - DIFFERENT: things the reference does that we need to change (e.g. multipass, specific UV layout)\n"
-        "   - BRIDGE NEEDED: adaptations required (e.g. flatten multipass into single-pass, add 3D surface)\n"
+        "2. Classify the techniques into three buckets relative to the TARGET:\n"
+        "   - SIMILAR: techniques we can reuse directly to recreate the target\n"
+        "   - DIFFERENT: things the reference does that don't match the target and need to change\n"
+        "   - BRIDGE NEEDED: adaptations required to get from the reference toward the target\n"
         "3. Based on your analysis, generate TWO tailored prompts:\n"
         "   a) initial_prompt: instructions for generating the FIRST shader. "
         "Be specific about which techniques to borrow, what to simplify, and what new techniques to add. "
@@ -181,14 +201,37 @@ def run_discovery(*, reference_text: str | None) -> Dict[str, object]:
         f"REFERENCE TEXT:\n{ref}\n"
     )
 
-    data = _call_json_model(
-        client=client,
-        model=model,
-        messages=[
-            {"role": "system", "content": "Return JSON only. Output must be valid JSON."},
-            {"role": "user", "content": prompt},
-        ],
-    )
+    if target_img is not None:
+        vision_model = os.getenv("OPENAI_VISION_MODEL", "gpt-4o-mini")
+        target_url = _image_to_data_url(target_img)
+        content: list[dict] = [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": target_url}},
+        ]
+        response = client.chat.completions.create(
+            model=vision_model,
+            messages=[
+                {"role": "system", "content": "Return JSON only. Output must be valid JSON."},
+                {"role": "user", "content": content},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.4,
+        )
+        raw = response.choices[0].message.content or "{}"
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = {}
+    else:
+        model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+        data = _call_json_model(
+            client=client,
+            model=model,
+            messages=[
+                {"role": "system", "content": "Return JSON only. Output must be valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+        )
 
     def _ensure_str(val: object) -> str:
         if isinstance(val, str):
