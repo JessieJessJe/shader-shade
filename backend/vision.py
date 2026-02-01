@@ -49,7 +49,7 @@ def critique_images(
         "COLOR DELTA: <brief description of the exact color/palette shift needed>\n"
         "WHAT'S WORKING:\n"
         "- ...\n"
-        "WHAT NEEDS TO CHANGE (in priority order — color first, then structure, texture, edges):\n"
+        "WHAT NEEDS TO CHANGE (structure, texture, edges only — do NOT repeat color here, it is already covered in COLOR DELTA):\n"
         "- ...\n"
     )
 
