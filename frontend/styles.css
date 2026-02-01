@@ -40,6 +40,19 @@ body {
   display: flex;
   gap: 12px;
   margin-top: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.preview {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.preview-label {
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 button {
@@ -72,6 +85,41 @@ button:disabled {
   min-height: 20px;
 }
 
+.progress {
+  margin-top: 10px;
+  background: #0f1a2a;
+  border: 1px solid #1f2a3a;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #00d2ff, #3cffc4);
+  transition: width 0.4s ease;
+}
+
+.progress-bar.running {
+  width: 100%;
+  background-size: 200% 100%;
+  animation: progress-stripes 1.2s linear infinite;
+}
+
+.progress-bar.running::after {
+  content: "";
+}
+
+@keyframes progress-stripes {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 200% 50%;
+  }
+}
+
 .status.running::after {
   content: " • running";
   color: var(--accent);
@@ -83,6 +131,57 @@ button:disabled {
   gap: 10px;
   align-items: center;
   margin-bottom: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.field.full {
+  margin-top: 14px;
+}
+
+.field input {
+  background: #0f1a2a;
+  border: 1px solid #1f2a3a;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 120px;
+}
+
+.field textarea {
+  background: #0f1a2a;
+  border: 1px solid #1f2a3a;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px;
+  resize: vertical;
+  width: 100%;
+}
+
+.notes {
+  display: block;
+}
+
+.notes-list {
+  display: grid;
+  gap: 12px;
+}
+
+.note-item {
+  background: #0e1424;
+  border: 1px solid #1a2336;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.note-title {
+  font-weight: 600;
+  margin-bottom: 6px;
 }
 
 .grid {

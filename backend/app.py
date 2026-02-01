@@ -16,9 +16,15 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel, Field
 
-from backend.agent import DEFAULT_FRAGMENT_SHADER, generate_shader
+from backend.agent import (
+    DEFAULT_FRAGMENT_SHADER,
+    edit_shader,
+    fix_compile_errors,
+    generate_initial_shader,
+)
+from backend.metrics import compute_lpips
 from backend.render import render_iteration
-from backend.scoring import score_pair
+from backend.vision import critique_images
 
 ASSETS_DIR = BASE_DIR / "assets"
 UPLOADS_DIR = ASSETS_DIR / "uploads"
@@ -35,11 +41,32 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
 
 
+@app.get("/api/health")
+def health() -> JSONResponse:
+    try:
+        import torch  # noqa: F401
+        import lpips  # noqa: F401
+        lpips_available = True
+    except Exception as exc:
+        lpips_available = False
+        lpips_error = str(exc)
+    else:
+        lpips_error = ""
+
+    return JSONResponse(
+        {
+            "status": "ok",
+            "lpips_available": lpips_available,
+            "lpips_error": lpips_error,
+        }
+    )
+
+
 class RunRequest(BaseModel):
     image_id: str | None = Field(None, description="Upload id returned by /api/upload")
     iterations: int = Field(5, ge=1, le=8)
-    weights: dict = Field(
-        default_factory=lambda: {"fft": 0.4, "edge": 0.3, "gram": 0.3}
+    reference_text: str | None = Field(
+        None, description="Optional reference text overriding the default summary"
     )
 
 
@@ -78,19 +105,23 @@ async def run_loop(payload: RunRequest) -> JSONResponse:
         input_image_ref = "/assets/uploads/test1.png"
 
     iterations = []
-    best = {"score": -1.0, "render_path": "", "shader_code": ""}
-    prev_scores = None
+    best = {"score": None, "render_path": "", "shader_code": "", "metric": ""}
     prev_shader = None
+    prev_critique = None
     last_good_shader = DEFAULT_FRAGMENT_SHADER
 
     for i in range(payload.iterations):
-        agent_out = generate_shader(
-            iteration=i,
-            total_iterations=payload.iterations,
-            weights=payload.weights,
-            prev_scores=prev_scores,
-            prev_shader=prev_shader,
-        )
+        if i == 0:
+            agent_out = generate_initial_shader(
+                target_description=None, reference_text=payload.reference_text
+            )
+        else:
+            agent_out = edit_shader(
+                current_shader=prev_shader or last_good_shader,
+                critique_text=prev_critique or "No critique available.",
+                target_description=None,
+                reference_text=payload.reference_text,
+            )
         fragment_shader = agent_out.get("fragment_shader", DEFAULT_FRAGMENT_SHADER)
         compile_error = ""
         try:
@@ -104,36 +135,64 @@ async def run_loop(payload: RunRequest) -> JSONResponse:
             last_good_shader = fragment_shader
         except Exception as exc:
             compile_error = str(exc)
-            render_path, shader_code, render_img, input_img = render_iteration(
-                input_img=input_img,
-                iteration=i,
-                total_iterations=payload.iterations,
-                fragment_shader=last_good_shader,
-                output_dir=RENDERS_DIR,
-            )
+            repaired = fix_compile_errors(shader=fragment_shader, compile_error=compile_error)
+            repaired_shader = repaired.get("fragment_shader", last_good_shader)
+            try:
+                render_path, shader_code, render_img, input_img = render_iteration(
+                    input_img=input_img,
+                    iteration=i,
+                    total_iterations=payload.iterations,
+                    fragment_shader=repaired_shader,
+                    output_dir=RENDERS_DIR,
+                )
+                last_good_shader = repaired_shader
+            except Exception:
+                render_path, shader_code, render_img, input_img = render_iteration(
+                    input_img=input_img,
+                    iteration=i,
+                    total_iterations=payload.iterations,
+                    fragment_shader=last_good_shader,
+                    output_dir=RENDERS_DIR,
+                )
 
-        scores = score_pair(input_img, render_img, payload.weights)
-        score = scores["composite"]
+        lpips_score = compute_lpips(input_img, render_img)
+        critique_text = critique_images(target_img=input_img, output_img=render_img)
+
+        rank_value = lpips_score
+        rank_metric = "lpips"
+        rank_is_lower = True
 
         iterations.append(
             {
                 "iteration": i + 1,
-                "score": score,
-                "scores": scores,
+                "lpips_score": lpips_score,
                 "render_path": f"/assets/renders/{render_path.name}",
                 "shader_code": shader_code,
                 "compile_error": compile_error,
+                "critique": critique_text,
                 "agent_notes": agent_out.get("notes", ""),
             }
         )
 
-        if score > best["score"]:
+        if rank_value is None:
+            should_replace = False
+        elif best["score"] is None:
+            should_replace = True
+        elif rank_is_lower and rank_value < best["score"]:
+            should_replace = True
+        elif not rank_is_lower and rank_value > best["score"]:
+            should_replace = True
+        else:
+            should_replace = False
+
+        if should_replace:
             best = {
-                "score": score,
+                "score": rank_value,
                 "render_path": f"/assets/renders/{render_path.name}",
                 "shader_code": shader_code,
+                "metric": rank_metric,
             }
-        prev_scores = scores
         prev_shader = fragment_shader
+        prev_critique = critique_text
 
     return JSONResponse({"iterations": iterations, "best": best, "input_image": input_image_ref})

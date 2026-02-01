@@ -50,9 +50,9 @@ def render_iteration(
     vbo = ctx.buffer(vertices.tobytes())
     vao = ctx.simple_vertex_array(program, vbo, "in_pos")
 
+    texture = ctx.texture(OUTPUT_SIZE, 3, input_arr.tobytes())
+    texture.use(location=0)
     if "u_input" in program:
-        texture = ctx.texture(OUTPUT_SIZE, 3, input_arr.tobytes())
-        texture.use(location=0)
         program["u_input"] = 0
 
     if "u_time" in program:

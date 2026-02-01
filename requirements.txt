@@ -7,3 +7,6 @@ moderngl
 openai
 weave
 python-dotenv
+lpips
+torch
+torchvision

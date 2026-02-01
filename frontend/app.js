@@ -1,34 +1,40 @@
 const fileInput = document.getElementById("fileInput");
 const uploadBtn = document.getElementById("uploadBtn");
 const runBtn = document.getElementById("runBtn");
+const iterationsInput = document.getElementById("iterationsInput");
 const uploadStatus = document.getElementById("uploadStatus");
 const runStatus = document.getElementById("runStatus");
 const iterationsEl = document.getElementById("iterations");
 const bestEl = document.getElementById("best");
 const originalImage = document.getElementById("originalImage");
-
-const fftWeight = document.getElementById("fftWeight");
-const edgeWeight = document.getElementById("edgeWeight");
-const gramWeight = document.getElementById("gramWeight");
-const fftVal = document.getElementById("fftVal");
-const edgeVal = document.getElementById("edgeVal");
-const gramVal = document.getElementById("gramVal");
+const discoveryNotesEl = document.getElementById("discoveryNotes");
+const referenceShaderInput = document.getElementById("referenceShaderInput");
+const progressBar = document.getElementById("progressBar");
 
 let imageId = null;
 originalImage.src = "/assets/uploads/test1.png";
 uploadStatus.textContent = "Using default image: /assets/uploads/test1.png";
 
-function updateLabels() {
-  fftVal.textContent = Number(fftWeight.value).toFixed(2);
-  edgeVal.textContent = Number(edgeWeight.value).toFixed(2);
-  gramVal.textContent = Number(gramWeight.value).toFixed(2);
+const referenceStorageKey = "referenceShaderDraft";
+if (referenceShaderInput) {
+  const savedReference = localStorage.getItem(referenceStorageKey);
+  if (savedReference) {
+    referenceShaderInput.value = savedReference;
+  } else {
+    fetch("/static/reference_particle_flow_summary.txt")
+      .then((res) => (res.ok ? res.text() : ""))
+      .then((text) => {
+        if (text) {
+          referenceShaderInput.value = text.trim();
+        }
+      })
+      .catch(() => {});
+  }
+  referenceShaderInput.addEventListener("input", (event) => {
+    const value = event.target.value || "";
+    localStorage.setItem(referenceStorageKey, value);
+  });
 }
-
-[fftWeight, edgeWeight, gramWeight].forEach((el) => {
-  el.addEventListener("input", updateLabels);
-});
-
-updateLabels();
 
 uploadBtn.addEventListener("click", async () => {
   const file = fileInput.files[0];
@@ -49,17 +55,22 @@ uploadBtn.addEventListener("click", async () => {
 runBtn.addEventListener("click", async () => {
   iterationsEl.innerHTML = "";
   bestEl.innerHTML = "";
+  discoveryNotesEl.innerHTML = "";
   runStatus.textContent = "Starting run...";
   runStatus.classList.add("running");
+  if (progressBar) {
+    progressBar.style.width = "0%";
+    progressBar.classList.add("running");
+  }
 
+  const iterationsValue = Math.max(
+    1,
+    Math.min(8, Number(iterationsInput?.value || 5))
+  );
   const payload = {
     image_id: imageId,
-    iterations: 5,
-    weights: {
-      fft: Number(fftWeight.value),
-      edge: Number(edgeWeight.value),
-      gram: Number(gramWeight.value),
-    },
+    iterations: iterationsValue,
+    reference_text: referenceShaderInput?.value || null,
   };
 
   let data = null;
@@ -74,6 +85,10 @@ runBtn.addEventListener("click", async () => {
   } catch (err) {
     runStatus.textContent = `Run failed: ${err}`;
     runStatus.classList.remove("running");
+    if (progressBar) {
+      progressBar.classList.remove("running");
+      progressBar.style.width = "0%";
+    }
     return;
   }
 
@@ -82,13 +97,18 @@ runBtn.addEventListener("click", async () => {
   }
 
   data.iterations.forEach((iter) => {
+    const lpips = iter.lpips_score;
     const card = document.createElement("div");
     card.className = "iter-card";
+    const compileStatus = iter.compile_error ? "compile error" : "compiled";
     card.innerHTML = `
       <div>Iteration ${iter.iteration}</div>
-      <div>Score: ${iter.score.toFixed(3)}</div>
-      ${iter.compile_error ? `<div class="muted">Compile error: ${iter.compile_error}</div>` : ""}
+      <div class="muted">LPIPS: ${lpips == null ? "n/a" : lpips.toFixed(4)}</div>
+      <div class="muted">Status: ${compileStatus}</div>
+      ${iter.compile_error ? `<div class="muted">Error: ${iter.compile_error}</div>` : ""}
       <img src="${iter.render_path}" alt="iteration ${iter.iteration}" />
+      ${iter.agent_notes ? `<details><summary>Agent Notes</summary><pre>${iter.agent_notes}</pre></details>` : ""}
+      ${iter.critique ? `<details><summary>Critique</summary><pre>${iter.critique}</pre></details>` : ""}
       <details>
         <summary>GLSL</summary>
         <pre>${iter.shader_code}</pre>
@@ -99,12 +119,32 @@ runBtn.addEventListener("click", async () => {
 
   if (data.best?.render_path) {
     bestEl.innerHTML = `
-      <div>Best score: ${data.best.score.toFixed(3)}</div>
+      <div>Best ${data.best.metric || "lpips"}: ${data.best.score.toFixed(4)}</div>
       <img src="${data.best.render_path}" alt="best output" />
       <pre>${data.best.shader_code}</pre>
     `;
   }
 
+  if (data.iterations?.length) {
+    const notesList = document.createElement("div");
+    notesList.className = "notes-list";
+    data.iterations.forEach((iter) => {
+      const item = document.createElement("div");
+      item.className = "note-item";
+      const noteText = iter.agent_notes || "No notes.";
+      item.innerHTML = `
+        <div class="note-title">Iteration ${iter.iteration}</div>
+        <pre>${noteText}</pre>
+      `;
+      notesList.appendChild(item);
+    });
+    discoveryNotesEl.appendChild(notesList);
+  }
+
   runStatus.textContent = "Run complete.";
   runStatus.classList.remove("running");
+  if (progressBar) {
+    progressBar.classList.remove("running");
+    progressBar.style.width = "100%";
+  }
 });
