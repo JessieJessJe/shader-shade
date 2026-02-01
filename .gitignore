@@ -6,3 +6,5 @@ assets/uploads/
 assets/renders/
 .DS_Store
 *.docx
+assets/presentation/outline.txt
+.vercel
