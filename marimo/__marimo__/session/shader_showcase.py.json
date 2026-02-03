@@ -1,0 +1,104 @@
+{
+  "version": "1",
+  "metadata": {
+    "marimo_version": "0.19.7"
+  },
+  "cells": [
+    {
+      "id": "PKri",
+      "code_hash": "9b7f46d0b3c8c8b9b55a22e1956c6a80",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/markdown": "<span class=\"markdown prose dark:prose-invert contents\"><h1 id=\"shader-showcase\">Shader Showcase</h1>\n<span class=\"paragraph\">\"\n    f\"<strong>{len(shaders)}</strong> generated shaders across <strong>{len(runs)}</strong> runs.</span>\n<span class=\"paragraph\">\"\n    \"Each run starts with an initial generation, then iteratively refines \"\n    \"using VLM critique and perceptual scoring.</span></span>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Hbol",
+      "code_hash": "f848978dac32d0e341a7108a7b664810",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "MJUe",
+      "code_hash": "b3a9636c7a677425396be7255895bdfb",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "vblA",
+      "code_hash": "f6e9c067319c1880c88772c5abde36ae",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/plain": ""
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "bkHC",
+      "code_hash": "573ab68b40c1c20237392ee834746ab8",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<div style='display: flex;flex: 1;flex-direction: column;justify-content: flex-start;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\"><strong>W&amp;B connection:</strong> Cached data found at <code>shader_traces.json</code></span></span><div style='display: flex;flex: 1;flex-direction: row;justify-content: space-between;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><marimo-ui-element object-id='bkHC-0' random-id='f57c12f7-c6ef-268e-e7d8-2d2935895b80'><marimo-button data-initial-value='0' data-label='&quot;&lt;span class=&#92;&quot;markdown prose dark:prose-invert contents&#92;&quot;&gt;&lt;span class=&#92;&quot;paragraph&#92;&quot;&gt;Fetch from W&amp;amp;B&lt;/span&gt;&lt;/span&gt;&quot;' data-kind='&quot;neutral&quot;' data-disabled='false' data-full-width='false'></marimo-button></marimo-ui-element><span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\"><em>Press to pull latest traces from Weave (overwrites cache)</em></span></span></div></div>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "lEQa",
+      "code_hash": "24c2ff79133287cd50070c6767b60b7b",
+      "outputs": [
+        {
+          "type": "data",
+          "data": {
+            "text/html": "<div style='display: flex;flex: 1;flex-direction: column;justify-content: flex-start;align-items: normal;flex-wrap: nowrap;gap: 0.5rem'><span class=\"markdown prose dark:prose-invert contents\"><span class=\"paragraph\">Fetched <strong>50</strong> records and saved to <code>shader_traces.json</code></span></span></div>"
+          }
+        }
+      ],
+      "console": []
+    },
+    {
+      "id": "Xref",
+      "code_hash": "3a75905c09e4cd45280f0efcf82a08df",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "SFPL",
+      "code_hash": "9fd0bdddfc2d150f8064061d11a8ee64",
+      "outputs": [],
+      "console": []
+    },
+    {
+      "id": "BYtC",
+      "code_hash": "7328aeb208d388e551e2075457aa2e19",
+      "outputs": [],
+      "console": []
+    }
+  ]
+}

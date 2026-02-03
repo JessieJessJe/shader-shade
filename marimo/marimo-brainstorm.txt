@@ -1,0 +1,17 @@
+
+Phase 3 brainstorm: Shader gallery
+
+I want to create an interactive gallery of the generated shaders in a marimo notebook
+The goal is to reflect on the shader generation journey as an artistic exploration side project
+
+
+the proposed workflow for marimo
+- connect to weight and bias tracing and fetch the data entries we need: generated GLSL, agent critique (query once and save locally)
+- create a customized anywidget for showing my glsl (so no transformation is needed for the glsl in wnb) - should be published so other marimo users can import
+- simple UI in marimo for browsing shaders and their critique
+
+MVP
+- Pull last 30 records from wnb and publish the marimo notebook
+
+additional resource:
+anywidget-glsl: https://github.com/dmadisetti/anywidget-glsl
