@@ -127,9 +127,9 @@ Lightweight, self-contained notebook designed for publishing on molab. No W&B, n
 
 ### Cell architecture (6 cells)
 
-1. **Imports + ShaderWidget** — `mo`, `json`, `Path`, `anywidget`, `traitlets`; defines `ShaderWidget` class inline with full WebGL2 `_esm`; sets `DATA_PATH`
-2. **Header** — title, description, and "How to use" guide
-3. **Load data** — reads `shader_traces.json`, filters to entries with GLSL, exports flat `shaders` list
+1. **Header** — title, description, and "How to use" guide
+2. **Imports + ShaderWidget** — `mo`, `json`, `urllib`, `anywidget`, `traitlets`; defines `ShaderWidget` class inline with full WebGL2 `_esm`; sets `DATA_URL` (GitHub raw URL)
+3. **Load data** — fetches `shader_traces.json` from remote URL, filters to entries with GLSL, exports flat `shaders` list
 4. **Slider** — `mo.ui.slider` from 0 to `len(shaders) - 1` (dynamic), full-width
 5. **Shader display** — side-by-side layout: 512px live WebGL widget on left, scrollable panel with agent notes + GLSL source on right
 6. *(empty utility cell)*
@@ -139,6 +139,7 @@ Lightweight, self-contained notebook designed for publishing on molab. No W&B, n
 - **Flat list, no run grouping** — single slider over all shaders for simplicity
 - **One shader at a time** — only one WebGL context active for performance
 - **Inline widget** — no external `shader-widget` dependency; fully self-contained for molab
+- **Remote data URL** — fetches `shader_traces.json` from GitHub raw URL, no local file dependency
 - **Scrollable right panel** — GLSL + notes in a `max-height: 520px` scrollable div to keep layout stable
 
 ### Reactive flow

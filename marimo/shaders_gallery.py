@@ -29,7 +29,7 @@ def _(mo):
 def _():
     import marimo as mo
     import json
-    from pathlib import Path
+    import urllib.request
 
     import anywidget
     import traitlets
@@ -206,19 +206,17 @@ def _():
         export default { render };
         """
 
-    DATA_PATH = Path(__file__).parent / "data" / "shader_traces.json"
-    return DATA_PATH, ShaderWidget, json, mo
+    DATA_URL = "https://raw.githubusercontent.com/JessieJessJe/shader-shade/refs/heads/main/marimo/data/shader_traces.json"
+    return DATA_URL, ShaderWidget, json, mo, urllib
 
 
 @app.cell
-def _(DATA_PATH, json, mo):
-    mo.stop(
-        not DATA_PATH.exists(),
-        mo.callout(mo.md(f"Data file not found at `{DATA_PATH}`"), kind="warn"),
-    )
-
-    with open(DATA_PATH) as _f:
-        _all_shaders = json.load(_f)
+def _(DATA_URL, json, mo, urllib):
+    try:
+        with urllib.request.urlopen(DATA_URL) as _resp:
+            _all_shaders = json.loads(_resp.read().decode("utf-8"))
+    except Exception as _e:
+        mo.stop(True, mo.callout(mo.md(f"Failed to load data: {_e}"), kind="warn"))
 
     shaders = [s for s in _all_shaders if s.get("glsl")]
     return (shaders,)
